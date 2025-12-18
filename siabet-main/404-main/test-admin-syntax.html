@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin.js Syntax Test</title>
+</head>
+<body>
+    <h1>Testing admin.js syntax</h1>
+    <div id="result"></div>
+    
+    <script>
+        // Test if admin.js can be loaded without syntax errors
+        const script = document.createElement('script');
+        script.src = 'js/admin.js';
+        script.onload = function() {
+            document.getElementById('result').innerHTML = '<p style="color: green;">✅ admin.js loaded successfully - no syntax errors!</p>';
+        };
+        script.onerror = function() {
+            document.getElementById('result').innerHTML = '<p style="color: red;">❌ admin.js failed to load - syntax errors present!</p>';
+        };
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

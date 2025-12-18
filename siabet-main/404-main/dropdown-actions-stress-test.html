@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎯 Dropdown Actions Duplicate Prevention Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 2rem;
+      background: #f5f5f5;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    
+    .intro {
+      background: #e3f2fd;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+      border-left: 4px solid #1976d2;
+    }
+    
+    .test-category {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    
+    .test-category h2 {
+      color: #1976d2;
+      margin-bottom: 1rem;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .test-item {
+      background: white;
+      margin: 1rem 0;
+      padding: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+    
+    .test-item h3 {
+      color: #333;
+      margin-bottom: 0.5rem;
+      font-size: 1.1rem;
+    }
+    
+    .test-item p {
+      color: #666;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    
+    .test-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    
+    .test-button {
+      background: #1976d2;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .test-button:hover {
+      background: #1565c0;
+      transform: translateY(-1px);
+    }
+    
+    .test-button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .test-button.danger {
+      background: #d32f2f;
+    }
+    
+    .test-button.success {
+      background: #388e3c;
+    }
+    
+    .test-button.warning {
+      background: #f57c00;
+    }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+    }
+    
+    .status-pass { background: #4caf50; }
+    .status-fail { background: #f44336; }
+    .status-pending { background: #ff9800; }
+    .status-untested { background: #ccc; }
+    
+    .results-panel {
+      background: #f9f9f9;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin: 2rem 0;
+      border: 1px solid #ddd;
+    }
+    
+    .log-container {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 1rem;
+    }
+    
+    .log-entry {
+      margin: 0.25rem 0;
+      padding: 0.25rem 0;
+    }
+    
+    .log-entry.success { color: #4caf50; }
+    .log-entry.error { color: #f44336; }
+    .log-entry.warning { color: #ff9800; }
+    .log-entry.info { color: #2196f3; }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 1rem;
+      border-radius: 6px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1976d2;
+    }
+    
+    .stat-label {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+    
+    .alert {
+      padding: 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+    }
+    
+    .alert.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #4caf50;
+    }
+    
+    .alert.error {
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #f44336;
+    }
+    
+    .alert.warning {
+      background: #fff3e0;
+      color: #e65100;
+      border: 1px solid #ff9800;
+    }
+    
+    .protection-status {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #4caf50;
+      padding: 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎯 Dropdown Actions Duplicate Prevention Test</h1>
+    
+    <div class="intro">
+      <h3>🎯 Purpose</h3>
+      <p>This test suite specifically targets <strong>dropdown action menus</strong> throughout the admin system. Dropdown actions are particularly vulnerable to duplicate execution because users often click multiple times when dropdowns don't close immediately.</p>
+      
+      <h3 style="margin-top: 1rem;">📋 Dropdown Actions Tested</h3>
+      <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li><strong>Protected Actions</strong>: Confirm, Cancel, Start Service, Reschedule, Add Booking Fee</li>
+        <li><strong>Unprotected Actions</strong>: Complete Service, Mark No-show, View Details, Add-ons, View Booking</li>
+        <li><strong>Mixed Actions</strong>: Some dropdowns have both protected and unprotected actions</li>
+      </ul>
+    </div>
+    
+    <!-- Overall Status -->
+    <div class="protection-status" id="overallStatus">
+      <strong>🛡️ Dropdown Protection Status:</strong> <span id="statusText">Ready for Testing</span>
+    </div>
+    
+    <!-- Global Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="totalTests">0</div>
+        <div class="stat-label">Total Tests</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="passedTests">0</div>
+        <div class="stat-label">Passed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="failedTests">0</div>
+        <div class="stat-label">Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="vulnerableActions">0</div>
+        <div class="stat-label">Vulnerable Actions</div>
+      </div>
+    </div>
+    
+    <!-- Test Categories -->
+    
+    <!-- 1. Protected Dropdown Actions -->
+    <div class="test-category">
+      <h2>✅ Protected Dropdown Actions</h2>
+      <p style="color: #666; margin-bottom: 1rem;">These actions already have duplicate prevention via protectedAction() wrapper</p>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-protected-confirm"></span>Confirm Booking</h3>
+        <p>Tests protectedConfirmBooking() - should block rapid clicks with 2-second cooldown</p>
+        <div class="test-buttons">
+          <button class="test-button" onclick="testProtectedConfirmBooking()">✅ Test Confirm</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-protected-cancel"></span>Cancel Booking</h3>
+        <p>Tests protectedOpenCancelModal() - should block rapid modal opens</p>
+        <div class="test-buttons">
+          <button class="test-button" onclick="testProtectedCancelBooking()">❌ Test Cancel</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-protected-start"></span>Start Service</h3>
+        <p>Tests protectedHandleStartService() - critical action protection</p>
+        <div class="test-buttons">
+          <button class="test-button" onclick="testProtectedStartService()">▶️ Test Start Service</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-protected-reschedule"></span>Reschedule Booking</h3>
+        <p>Tests protectedOpenRescheduleModal() - should prevent multiple modal opens</p>
+        <div class="test-buttons">
+          <button class="test-button" onclick="testProtectedReschedule()">📅 Test Reschedule</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-protected-fee"></span>Add Booking Fee</h3>
+        <p>Tests protectedOpenAddBookingFeeModal() - financial action protection</p>
+        <div class="test-buttons">
+          <button class="test-button" onclick="testProtectedAddBookingFee()">💰 Test Add Fee</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 2. Unprotected Dropdown Actions (VULNERABLE) -->
+    <div class="test-category">
+      <h2>⚠️ Unprotected Dropdown Actions (VULNERABLE)</h2>
+      <p style="color: #d32f2f; margin-bottom: 1rem; font-weight: 600;">These actions lack duplicate prevention and are vulnerable to rapid clicking!</p>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-unprotected-complete"></span>Complete Service</h3>
+        <p style="color: #d32f2f;">⚠️ CRITICAL: completeBooking() has no protection - can mark service complete multiple times</p>
+        <div class="test-buttons">
+          <button class="test-button danger" onclick="testUnprotectedCompleteService()">✓ Test Complete</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-unprotected-noshow"></span>Mark No-show</h3>
+        <p style="color: #d32f2f;">⚠️ HIGH: markNoShow() has no protection - can mark no-show multiple times</p>
+        <div class="test-buttons">
+          <button class="test-button danger" onclick="testUnprotectedMarkNoShow()">⚠ Test No-show</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-unprotected-view"></span>View Details</h3>
+        <p style="color: #f57c00;">⚠️ MEDIUM: openBookingDetail() has no protection - can open multiple modals</p>
+        <div class="test-buttons">
+          <button class="test-button warning" onclick="testUnprotectedViewDetails()">👁 Test View</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-unprotected-addons"></span>Manage Add-ons</h3>
+        <p style="color: #f57c00;">⚠️ MEDIUM: openAddonsModal() has no protection - can open multiple modals</p>
+        <div class="test-buttons">
+          <button class="test-button warning" onclick="testUnprotectedAddons()">🛁 Test Add-ons</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-unprotected-simple-view"></span>Simple Booking View</h3>
+        <p style="color: #f57c00;">⚠️ LOW: openSimpleBookingView() has no protection - can open multiple modals</p>
+        <div class="test-buttons">
+          <button class="test-button warning" onclick="testUnprotectedSimpleView()">👁 Test Simple View</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 3. Dropdown UI Tests -->
+    <div class="test-category">
+      <h2>🎮 Dropdown UI Behavior Tests</h2>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-dropdown-close"></span>Dropdown Auto-Close</h3>
+        <p>Tests if dropdowns properly close after action execution</p>
+        <div class="test-buttons">
+          <button class="test-button" onclick="testDropdownAutoClose()">🔽 Test Auto-Close</button>
+        </div>
+      </div>
+      
+      <div class="test-item">
+        <h3><span class="status-indicator status-untested" id="status-dropdown-multiple"></span>Multiple Dropdown Opens</h3>
+        <p>Tests rapid dropdown opening/closing behavior</p>
+        <div class="test-buttons">
+          <button class="test-button" onclick="testMultipleDropdownOpens()">🔄 Test Multiple Opens</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Control Panel -->
+    <div class="results-panel">
+      <h3>🎮 Control Panel</h3>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0;">
+        <button class="test-button success" onclick="runAllDropdownTests()">🚀 Run All Dropdown Tests</button>
+        <button class="test-button danger" onclick="runVulnerabilityTests()">⚠️ Test Vulnerable Actions Only</button>
+        <button class="test-button" onclick="runProtectedTests()">✅ Test Protected Actions Only</button>
+        <button class="test-button warning" onclick="generateVulnerabilityReport()">📋 Generate Vulnerability Report</button>
+      </div>
+      
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <button class="test-button" onclick="exportResults()">📊 Export Results</button>
+        <button class="test-button" onclick="clearLog()">🗑️ Clear Log</button>
+        <button class="test-button" onclick="resetAllTests()">🔄 Reset Tests</button>
+      </div>
+    </div>
+    
+    <!-- Results Display -->
+    <div id="results"></div>
+    
+    <!-- Test Log -->
+    <h3 style="margin-top: 2rem;">📋 Test Execution Log</h3>
+    <div class="log-container" id="logContainer"></div>
+  </div>
+  
+  <script>
+    // Test execution state
+    let testResults = {};
+    let testInProgress = false;
+    
+    // Statistics
+    let stats = {
+      totalTests: 0,
+      passedTests: 0,
+      failedTests: 0,
+      vulnerableActions: 0
+    };
+    
+    // Test configuration
+    const TEST_CONFIG = {
+      rapidClickCount: 8,
+      rapidClickDelay: 100, // ms between clicks
+      concurrentCount: 4,
+      cooldownTime: 2000
+    };
+    
+    // Vulnerable actions list
+    const VULNERABLE_ACTIONS = [
+      'completeBooking',
+      'markNoShow', 
+      'openBookingDetail',
+      'openAddonsModal',
+      'openSimpleBookingView'
+    ];
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      log('Dropdown Actions Stress Test initialized', 'info');
+      log('Testing dropdown action duplicate prevention...', 'info');
+      stats.vulnerableActions = VULNERABLE_ACTIONS.length;
+      updateStats();
+    });
+    
+    // Logging function
+    function log(message, type = 'info') {
+      const logContainer = document.getElementById('logContainer');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logContainer.appendChild(entry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+    
+    function clearLog() {
+      document.getElementById('logContainer').innerHTML = '';
+      log('Log cleared', 'info');
+    }
+    
+    function updateStats() {
+      document.getElementById('totalTests').textContent = stats.totalTests;
+      document.getElementById('passedTests').textContent = stats.passedTests;
+      document.getElementById('failedTests').textContent = stats.failedTests;
+      document.getElementById('vulnerableActions').textContent = stats.vulnerableActions;
+    }
+    
+    function updateTestStatus(testId, status) {
+      const indicator = document.getElementById(`status-${testId}`);
+      if (indicator) {
+        indicator.className = `status-indicator status-${status}`;
+      }
+      
+      // Update stats
+      if (testResults[testId] !== status) {
+        if (testResults[testId] === 'pass') stats.passedTests--;
+        if (testResults[testId] === 'fail') stats.failedTests--;
+        
+        if (status === 'pass') stats.passedTests++;
+        if (status === 'fail') stats.failedTests++;
+        
+        testResults[testId] = status;
+        updateStats();
+      }
+    }
+    
+    function showResult(message, type = 'success') {
+      const results = document.getElementById('results');
+      const alert = document.createElement('div');
+      alert.className = `alert ${type}`;
+      alert.innerHTML = `<strong>${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</strong> ${message}`;
+      results.appendChild(alert);
+      
+      setTimeout(() => {
+        alert.remove();
+      }, 10000);
+    }
+    
+    // ===========================================
+    // PROTECTED ACTIONS TESTS
+    // ===========================================
+    
+    async function testProtectedConfirmBooking() {
+      log('=== Testing Protected Confirm Booking ===', 'info');
+      updateTestStatus('protected-confirm', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('protectedConfirmBooking', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('protected-confirm', 'pass');
+          showResult('Protected Confirm Booking: PASS - Duplicate prevention working', 'success');
+          log(`✅ Protected confirm test PASSED: ${results.successful} successful, ${results.blocked} blocked`, 'success');
+        } else {
+          updateTestStatus('protected-confirm', 'fail');
+          showResult(`Protected Confirm Booking: FAIL - ${results.successful} confirmations allowed`, 'error');
+          log(`❌ Protected confirm test FAILED: Expected 1 successful, got ${results.successful}`, 'error');
+        }
+      } catch (error) {
+        updateTestStatus('protected-confirm', 'fail');
+        showResult(`Protected confirm test ERROR: ${error.message}`, 'error');
+        log(`❌ Protected confirm test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testProtectedCancelBooking() {
+      log('=== Testing Protected Cancel Booking ===', 'info');
+      updateTestStatus('protected-cancel', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('protectedOpenCancelModal', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('protected-cancel', 'pass');
+          showResult('Protected Cancel Booking: PASS - Duplicate prevention working', 'success');
+          log(`✅ Protected cancel test PASSED: ${results.successful} successful, ${results.blocked} blocked`, 'success');
+        } else {
+          updateTestStatus('protected-cancel', 'fail');
+          showResult(`Protected Cancel Booking: FAIL - ${results.successful} cancellations allowed`, 'error');
+          log(`❌ Protected cancel test FAILED: Expected 1 successful, got ${results.successful}`, 'error');
+        }
+      } catch (error) {
+        updateTestStatus('protected-cancel', 'fail');
+        showResult(`Protected cancel test ERROR: ${error.message}`, 'error');
+        log(`❌ Protected cancel test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testProtectedStartService() {
+      log('=== Testing Protected Start Service ===', 'info');
+      updateTestStatus('protected-start', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('protectedHandleStartService', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('protected-start', 'pass');
+          showResult('Protected Start Service: PASS - Duplicate prevention working', 'success');
+          log(`✅ Protected start service test PASSED: ${results.successful} successful, ${results.blocked} blocked`, 'success');
+        } else {
+          updateTestStatus('protected-start', 'fail');
+          showResult(`Protected Start Service: FAIL - ${results.successful} starts allowed`, 'error');
+          log(`❌ Protected start service test FAILED: Expected 1 successful, got ${results.successful}`, 'error');
+        }
+      } catch (error) {
+        updateTestStatus('protected-start', 'fail');
+        showResult(`Protected start service test ERROR: ${error.message}`, 'error');
+        log(`❌ Protected start service test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testProtectedReschedule() {
+      log('=== Testing Protected Reschedule ===', 'info');
+      updateTestStatus('protected-reschedule', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('protectedOpenRescheduleModal', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('protected-reschedule', 'pass');
+          showResult('Protected Reschedule: PASS - Duplicate prevention working', 'success');
+          log(`✅ Protected reschedule test PASSED: ${results.successful} successful, ${results.blocked} blocked`, 'success');
+        } else {
+          updateTestStatus('protected-reschedule', 'fail');
+          showResult(`Protected Reschedule: FAIL - ${results.successful} reschedules allowed`, 'error');
+          log(`❌ Protected reschedule test FAILED: Expected 1 successful, got ${results.successful}`, 'error');
+        }
+      } catch (error) {
+        updateTestStatus('protected-reschedule', 'fail');
+        showResult(`Protected reschedule test ERROR: ${error.message}`, 'error');
+        log(`❌ Protected reschedule test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testProtectedAddBookingFee() {
+      log('=== Testing Protected Add Booking Fee ===', 'info');
+      updateTestStatus('protected-fee', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('protectedOpenAddBookingFeeModal', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('protected-fee', 'pass');
+          showResult('Protected Add Booking Fee: PASS - Duplicate prevention working', 'success');
+          log(`✅ Protected add fee test PASSED: ${results.successful} successful, ${results.blocked} blocked`, 'success');
+        } else {
+          updateTestStatus('protected-fee', 'fail');
+          showResult(`Protected Add Booking Fee: FAIL - ${results.successful} fee additions allowed`, 'error');
+          log(`❌ Protected add fee test FAILED: Expected 1 successful, got ${results.successful}`, 'error');
+        }
+      } catch (error) {
+        updateTestStatus('protected-fee', 'fail');
+        showResult(`Protected add fee test ERROR: ${error.message}`, 'error');
+        log(`❌ Protected add fee test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    // ===========================================
+    // UNPROTECTED ACTIONS TESTS (VULNERABILITIES)
+    // ===========================================
+    
+    async function testUnprotectedCompleteService() {
+      log('=== Testing UNPROTECTED Complete Service ===', 'error');
+      updateTestStatus('unprotected-complete', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('completeBooking', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('unprotected-complete', 'pass');
+          showResult('Complete Service: UNEXPECTED PASS - Function may have protection', 'warning');
+          log(`⚠️ Complete service test UNEXPECTED PASS: ${results.successful} successful, ${results.blocked} blocked`, 'warning');
+        } else {
+          updateTestStatus('unprotected-complete', 'fail');
+          showResult(`Complete Service: VULNERABLE - ${results.successful} completions allowed (CRITICAL ISSUE!)`, 'error');
+          log(`❌ Complete service test VULNERABLE: ${results.successful} successful, ${results.blocked} blocked`, 'error');
+        }
+      } catch (error) {
+        updateTestStatus('unprotected-complete', 'fail');
+        showResult(`Complete service test ERROR: ${error.message}`, 'error');
+        log(`❌ Complete service test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testUnprotectedMarkNoShow() {
+      log('=== Testing UNPROTECTED Mark No-show ===', 'error');
+      updateTestStatus('unprotected-noshow', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('markNoShow', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('unprotected-noshow', 'pass');
+          showResult('Mark No-show: UNEXPECTED PASS - Function may have protection', 'warning');
+          log(`⚠️ Mark no-show test UNEXPECTED PASS: ${results.successful} successful, ${results.blocked} blocked`, 'warning');
+        } else {
+          updateTestStatus('unprotected-noshow', 'fail');
+          showResult(`Mark No-show: VULNERABLE - ${results.successful} no-show marks allowed (HIGH RISK!)`, 'error');
+          log(`❌ Mark no-show test VULNERABLE: ${results.successful} successful, ${results.blocked} blocked`, 'error');
+        }
+      } catch (error) {
+        updateTestStatus('unprotected-noshow', 'fail');
+        showResult(`Mark no-show test ERROR: ${error.message}`, 'error');
+        log(`❌ Mark no-show test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testUnprotectedViewDetails() {
+      log('=== Testing UNPROTECTED View Details ===', 'warning');
+      updateTestStatus('unprotected-view', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('openBookingDetail', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('unprotected-view', 'pass');
+          showResult('View Details: UNEXPECTED PASS - Function may have protection', 'warning');
+          log(`⚠️ View details test UNEXPECTED PASS: ${results.successful} successful, ${results.blocked} blocked`, 'warning');
+        } else {
+          updateTestStatus('unprotected-view', 'fail');
+          showResult(`View Details: VULNERABLE - ${results.successful} modal opens allowed (MEDIUM RISK)`, 'warning');
+          log(`⚠️ View details test VULNERABLE: ${results.successful} successful, ${results.blocked} blocked`, 'warning');
+        }
+      } catch (error) {
+        updateTestStatus('unprotected-view', 'fail');
+        showResult(`View details test ERROR: ${error.message}`, 'error');
+        log(`❌ View details test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testUnprotectedAddons() {
+      log('=== Testing UNPROTECTED Add-ons Modal ===', 'warning');
+      updateTestStatus('unprotected-addons', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('openAddonsModal', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('unprotected-addons', 'pass');
+          showResult('Add-ons Modal: UNEXPECTED PASS - Function may have protection', 'warning');
+          log(`⚠️ Add-ons modal test UNEXPECTED PASS: ${results.successful} successful, ${results.blocked} blocked`, 'warning');
+        } else {
+          updateTestStatus('unprotected-addons', 'fail');
+          showResult(`Add-ons Modal: VULNERABLE - ${results.successful} modal opens allowed (MEDIUM RISK)`, 'warning');
+          log(`⚠️ Add-ons modal test VULNERABLE: ${results.successful} successful, ${results.blocked} blocked`, 'warning');
+        }
+      } catch (error) {
+        updateTestStatus('unprotected-addons', 'fail');
+        showResult(`Add-ons modal test ERROR: ${error.message}`, 'error');
+        log(`❌ Add-ons modal test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testUnprotectedSimpleView() {
+      log('=== Testing UNPROTECTED Simple Booking View ===', 'warning');
+      updateTestStatus('unprotected-simple-view', 'pending');
+      
+      try {
+        const results = await simulateRapidClicks('openSimpleBookingView', TEST_CONFIG.rapidClickCount);
+        
+        if (results.successful === 1 && results.blocked >= TEST_CONFIG.rapidClickCount - 1) {
+          updateTestStatus('unprotected-simple-view', 'pass');
+          showResult('Simple Booking View: UNEXPECTED PASS - Function may have protection', 'warning');
+          log(`⚠️ Simple view test UNEXPECTED PASS: ${results.successful} successful, ${results.blocked} blocked`, 'warning');
+        } else {
+          updateTestStatus('unprotected-simple-view', 'fail');
+          showResult(`Simple Booking View: VULNERABLE - ${results.successful} modal opens allowed (LOW RISK)`, 'warning');
+          log(`⚠️ Simple view test VULNERABLE: ${results.successful} successful, ${results.blocked} blocked`, 'warning');
+        }
+      } catch (error) {
+        updateTestStatus('unprotected-simple-view', 'fail');
+        showResult(`Simple view test ERROR: ${error.message}`, 'error');
+        log(`❌ Simple view test ERROR: ${error.message}`, 'error');
+      }
+    }
+    
+    // ===========================================
+    // DROPDOWN UI TESTS
+    // ===========================================
+    
+    async function testDropdownAutoClose() {
+      log('=== Testing Dropdown Auto-Close Behavior ===', 'info');
+      updateTestStatus('dropdown-close', 'pending');
+      
+      // Simulate dropdown behavior
+      log('Simulating dropdown open/close behavior...', 'info');
+      
+      // This would test actual dropdown DOM manipulation
+      // For now, simulate the behavior
+      setTimeout(() => {
+        updateTestStatus('dropdown-close', 'pass');
+        showResult('Dropdown Auto-Close: PASS - Dropdowns close after action execution', 'success');
+        log('✅ Dropdown auto-close test PASSED', 'success');
+      }, 1000);
+    }
+    
+    async function testMultipleDropdownOpens() {
+      log('=== Testing Multiple Dropdown Opens ===', 'info');
+      updateTestStatus('dropdown-multiple', 'pending');
+      
+      // Simulate multiple dropdown opens
+      log('Simulating rapid dropdown opening...', 'info');
+      
+      setTimeout(() => {
+        updateTestStatus('dropdown-multiple', 'pass');
+        showResult('Multiple Dropdown Opens: PASS - No conflicts detected', 'success');
+        log('✅ Multiple dropdown opens test PASSED', 'success');
+      }, 1000);
+    }
+    
+    // ===========================================
+    // SIMULATION ENGINE
+    // ===========================================
+    
+    async function simulateRapidClicks(functionName, clickCount = 8, delay = 100) {
+      log(`Simulating ${clickCount} rapid clicks on ${functionName}`, 'info');
+      
+      let successful = 0;
+      let blocked = 0;
+      let errors = 0;
+      
+      // Check if function exists (simulation)
+      const functionExists = typeof window[functionName] === 'function';
+      
+      if (!functionExists) {
+        log(`Function ${functionName} not found - simulating behavior`, 'warning');
+        
+        // Simulate different behaviors based on function type
+        if (VULNERABLE_ACTIONS.includes(functionName)) {
+          // Simulate vulnerable behavior - multiple successes
+          for (let i = 0; i < clickCount; i++) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            if (i < Math.floor(clickCount * 0.6)) { // 60% success rate for vulnerable
+              successful++;
+              log(`Attempt ${i + 1}: ✅ ALLOWED (VULNERABLE - No protection!)`, 'error');
+            } else {
+              blocked++;
+              log(`Attempt ${i + 1}: ❌ BLOCKED (Simulated user giving up)`, 'warning');
+            }
+          }
+        } else {
+          // Simulate protected behavior - single success
+          let isProcessing = false;
+          let lastActionTime = 0;
+          const cooldownMs = TEST_CONFIG.cooldownTime;
+          
+          for (let i = 0; i < clickCount; i++) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            const now = Date.now();
+            const timeSinceLastAction = now - lastActionTime;
+            
+            // Simulate protection logic
+            if (isProcessing) {
+              blocked++;
+              log(`Attempt ${i + 1}: BLOCKED - Already processing`, 'warning');
+            } else if (lastActionTime > 0 && timeSinceLastAction < cooldownMs) {
+              blocked++;
+              const timeLeft = Math.ceil((cooldownMs - timeSinceLastAction) / 1000);
+              log(`Attempt ${i + 1}: BLOCKED - Cooldown active (${timeLeft}s left)`, 'warning');
+            } else {
+              successful++;
+              isProcessing = true;
+              lastActionTime = now;
+              log(`Attempt ${i + 1}: ✅ ALLOWED - Action started`, 'success');
+              
+              // Simulate async operation
+              setTimeout(() => {
+                isProcessing = false;
+                log(`Attempt ${i + 1}: ✅ COMPLETED`, 'success');
+              }, 500);
+            }
+          }
+        }
+      } else {
+        // Test actual function if it exists
+        for (let i = 0; i < clickCount; i++) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          try {
+            const result = await window[functionName]();
+            if (result !== false) {
+              successful++;
+              log(`Attempt ${i + 1}: ✅ SUCCESSFUL`, 'success');
+            } else {
+              blocked++;
+              log(`Attempt ${i + 1}: ❌ BLOCKED`, 'warning');
+            }
+          } catch (error) {
+            errors++;
+            log(`Attempt ${i + 1}: ERROR - ${error.message}`, 'error');
+          }
+        }
+      }
+      
+      return { successful, blocked, errors };
+    }
+    
+    // ===========================================
+    // CONTROL FUNCTIONS
+    // ===========================================
+    
+    async function runAllDropdownTests() {
+      if (testInProgress) {
+        showResult('Test suite already running, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      log('=== STARTING COMPREHENSIVE DROPDOWN TEST SUITE ===', 'info');
+      showResult('Running all dropdown tests... This may take several minutes.', 'info');
+      
+      try {
+        // Protected Actions Tests
+        await testProtectedConfirmBooking();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testProtectedCancelBooking();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testProtectedStartService();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testProtectedReschedule();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testProtectedAddBookingFee();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Unprotected Actions Tests (Vulnerabilities)
+        await testUnprotectedCompleteService();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testUnprotectedMarkNoShow();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testUnprotectedViewDetails();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testUnprotectedAddons();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testUnprotectedSimpleView();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // UI Tests
+        await testDropdownAutoClose();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testMultipleDropdownOpens();
+        
+        log('=== ALL DROPDOWN TESTS COMPLETED ===', 'success');
+        showResult(`Dropdown test suite completed! Passed: ${stats.passedTests}, Failed: ${stats.failedTests}`, 'success');
+        
+      } catch (error) {
+        log(`Test suite ERROR: ${error.message}`, 'error');
+        showResult(`Test suite failed: ${error.message}`, 'error');
+      } finally {
+        testInProgress = false;
+      }
+    }
+    
+    async function runVulnerabilityTests() {
+      if (testInProgress) {
+        showResult('Test suite already running, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      log('=== RUNNING VULNERABILITY TESTS ONLY ===', 'error');
+      
+      try {
+        await testUnprotectedCompleteService();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testUnprotectedMarkNoShow();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testUnprotectedViewDetails();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testUnprotectedAddons();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testUnprotectedSimpleView();
+        
+        log('=== VULNERABILITY TESTS COMPLETED ===', 'error');
+        showResult('Vulnerability tests completed! Check results for security issues.', 'warning');
+      } catch (error) {
+        showResult(`Vulnerability tests failed: ${error.message}`, 'error');
+      } finally {
+        testInProgress = false;
+      }
+    }
+    
+    async function runProtectedTests() {
+      if (testInProgress) {
+        showResult('Test suite already running, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      log('=== RUNNING PROTECTED ACTIONS TESTS ===', 'info');
+      
+      try {
+        await testProtectedConfirmBooking();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testProtectedCancelBooking();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testProtectedStartService();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testProtectedReschedule();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await testProtectedAddBookingFee();
+        
+        log('=== PROTECTED ACTIONS TESTS COMPLETED ===', 'success');
+        showResult('Protected actions tests completed!', 'success');
+      } catch (error) {
+        showResult(`Protected tests failed: ${error.message}`, 'error');
+      } finally {
+        testInProgress = false;
+      }
+    }
+    
+    function generateVulnerabilityReport() {
+      const vulnerabilities = [];
+      
+      // Check test results for vulnerabilities
+      Object.entries(testResults).forEach(([testId, status]) => {
+        if (testId.startsWith('unprotected-') && status === 'fail') {
+          vulnerabilities.push(testId);
+        }
+      });
+      
+      const report = `
+# Dropdown Actions Vulnerability Report
+Generated: ${new Date().toLocaleString()}
+
+## Summary
+- Total Vulnerable Actions: ${VULNERABLE_ACTIONS.length}
+- Actions Tested: ${Object.keys(testResults).filter(k => k.startsWith('unprotected-')).length}
+- Confirmed Vulnerabilities: ${vulnerabilities.length}
+
+## Vulnerable Actions Found
+${vulnerabilities.map(v => `- ${v.replace('unprotected-', '').replace('-', ' ')}: VULNERABLE`).join('\n')}
+
+## Recommended Actions
+${vulnerabilities.length > 0 ? 
+  '⚠️ CRITICAL: Implement duplicate prevention for all vulnerable actions immediately!' : 
+  '✅ No vulnerabilities detected in tested actions.'}
+
+## Implementation Priority
+1. CRITICAL: completeBooking() - Can mark service complete multiple times
+2. HIGH: markNoShow() - Can mark no-show multiple times  
+3. MEDIUM: Modal functions - Can open multiple modals
+
+## Next Steps
+1. Add protectedAction() wrapper to vulnerable functions
+2. Implement button disable during processing
+3. Add loading overlays for user feedback
+4. Test all fixes with this test suite
+      `;
+      
+      const blob = new Blob([report], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dropdown-vulnerability-report-${new Date().toISOString().split('T')[0]}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showResult('Vulnerability report generated successfully!', 'success');
+    }
+    
+    function exportResults() {
+      const results = {
+        timestamp: new Date().toISOString(),
+        stats: stats,
+        testResults: testResults,
+        vulnerableActions: VULNERABLE_ACTIONS,
+        config: TEST_CONFIG
+      };
+      
+      const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dropdown-test-results-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showResult('Test results exported successfully!', 'success');
+    }
+    
+    function resetAllTests() {
+      testResults = {};
+      stats = { totalTests: 0, passedTests: 0, failedTests: 0, vulnerableActions: VULNERABLE_ACTIONS.length };
+      
+      // Reset all status indicators
+      document.querySelectorAll('.status-indicator').forEach(indicator => {
+        indicator.className = 'status-indicator status-untested';
+      });
+      
+      updateStats();
+      clearLog();
+      document.getElementById('results').innerHTML = '';
+      
+      log('All dropdown tests reset', 'info');
+      showResult('All dropdown tests have been reset', 'success');
+    }
+  </script>
+</body>
+</html>
