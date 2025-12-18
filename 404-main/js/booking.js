@@ -967,6 +967,17 @@ async function handleProfileLoad() {
       }
     });
 
+    // Auto-accept policy since user already agreed before
+    const policyCheckbox = document.getElementById('agreeToPolicy');
+    if (policyCheckbox) {
+      policyCheckbox.checked = true;
+      policyCheckbox.disabled = false; // Enable it in case it was disabled
+      console.log('[Profile Load] Policy auto-accepted');
+    }
+    
+    // Mark policy as agreed in bookingData
+    bookingData.policyAgreed = true;
+    
     // Stay on current step - don't jump to step 3
     // Only update the summary and enable next button if applicable
     updateSummary();
@@ -1050,6 +1061,17 @@ async function handleAutoProfileLoad() {
       }
     });
 
+    // Auto-accept policy since user already agreed before
+    const policyCheckbox = document.getElementById('agreeToPolicy');
+    if (policyCheckbox) {
+      policyCheckbox.checked = true;
+      policyCheckbox.disabled = false; // Enable it in case it was disabled
+      console.log('[Auto Profile Load] Policy auto-accepted');
+    }
+    
+    // Mark policy as agreed in bookingData
+    bookingData.policyAgreed = true;
+    
     // Jump directly to step 5 (Details) for dashboard auto-load
     showStep(5);
 
@@ -1126,6 +1148,17 @@ async function handleQuickRebook() {
     }
   });
 
+  // Auto-accept policy since user already agreed before
+  const policyCheckbox = document.getElementById('agreeToPolicy');
+  if (policyCheckbox) {
+    policyCheckbox.checked = true;
+    policyCheckbox.disabled = false; // Enable it in case it was disabled
+    console.log('[Quick Rebook] Policy auto-accepted');
+  }
+  
+  // Mark policy as agreed in bookingData
+  bookingData.policyAgreed = true;
+  
   // Jump directly to step 3 (Schedule)
   showStep(3);
   setupCalendarTimePicker().catch(err => console.error('Error rendering calendar:', err));
@@ -2208,11 +2241,19 @@ async function renderSingleServiceTimeSlots(date) {
     
     const { hour, minute } = parseSingleServiceTime(timeStr);
     
+    // ============================================
+    // 🕐 SCHEDULE CUTOFF LOGIC - SINGLE SERVICE
+    // ============================================
+    // Rule: Customer must book at least 30 minutes BEFORE the service time
+    // Example: For 2:00 PM slot, cutoff is 1:30 PM
+    //          If current time is 1:45 PM, slot is unavailable
+    // ============================================
+    
     // Calculate cutoff time (30 minutes before booking time for single service)
     let cutoffHour = hour;
     let cutoffMinute = minute - 30;
     
-    // Handle minute wraparound
+    // Handle minute wraparound (e.g., 2:15 - 30 min = 1:45)
     if (cutoffMinute < 0) {
       cutoffHour--;
       cutoffMinute += 60;
@@ -2403,7 +2444,14 @@ async function renderBookingTimeSlots(date) {
   const currentHour = today.getHours();
   const currentMinute = today.getMinutes();
 
-  // Helper function to check if a time slot has passed
+  // ============================================
+  // 🕐 SCHEDULE CUTOFF LOGIC - FULL PACKAGES
+  // ============================================
+  // Rule: Customer can book up to 30 minutes AFTER the slot STARTS
+  // Example: For "12pm-3pm" slot (starts at 12pm), cutoff is 12:30pm
+  //          If current time is 12:45pm, slot is unavailable
+  //          If current time is 12:15pm, slot is still available
+  // ============================================
   function isTimeSlotPast(timeSlot) {
     if (!isToday) return false; // Future dates are always available
 

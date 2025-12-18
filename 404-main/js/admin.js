@@ -600,6 +600,14 @@ function extractPreferredCut(notes) {
   return null;
 }
 
+// ============================================
+// 💰 PRICE BREAKDOWN GENERATOR
+// ============================================
+// Generates detailed price breakdown HTML for admin view
+// Different display logic based on booking status:
+// - PENDING: Simple view (Total Amount only)
+// - CONFIRMED/IN PROGRESS/COMPLETED: Full breakdown with all components
+// ============================================
 /**
  * Generate price breakdown HTML for admin view
  * For PENDING bookings: Show only Total Amount (no Package/Subtotal breakdown since no add-ons yet)
@@ -620,16 +628,24 @@ function generatePriceBreakdown(booking, pkg = null) {
   const cost = booking.cost || {};
   const isSingleService = booking.packageId === 'single-service';
   
-  // Get single services from cost.services or booking.singleServices
+  // ============================================
+  // 🔧 SINGLE SERVICE PRICING CALCULATION
+  // ============================================
+  // Single services have individual prices based on pet weight
+  // Try two sources:
+  // 1. cost.services (preferred - has actual prices)
+  // 2. booking.singleServices + SINGLE_SERVICE_PRICING (fallback)
+  // ============================================
   const singleServices = cost.services || [];
   const singleServicesIds = booking.singleServices || [];
   
-  // Calculate single services total
   let singleServicesTotal = 0;
   let singleServicesHtml = '';
   
   if (isSingleService && (singleServices.length > 0 || singleServicesIds.length > 0)) {
-    // If cost.services has the prices, use that
+    // ============================================
+    // OPTION 1: Use cost.services (has prices already calculated)
+    // ============================================
     if (singleServices.length > 0) {
       singleServicesTotal = singleServices.reduce((sum, s) => sum + (s.price || 0), 0);
       singleServicesHtml = singleServices.map(service => 
@@ -638,12 +654,24 @@ function generatePriceBreakdown(booking, pkg = null) {
         </div>`
       ).join('');
     } else if (singleServicesIds.length > 0) {
-      // Fallback: use SINGLE_SERVICE_PRICING to get labels and estimate prices
+      // ============================================
+      // OPTION 2: Fallback - calculate from SINGLE_SERVICE_PRICING
+      // ============================================
+      // Used when cost.services is empty (old bookings)
+      // Estimates price based on pet weight tier
+      // ============================================
       const pricing = window.SINGLE_SERVICE_PRICING || {};
       singleServicesHtml = singleServicesIds.map(serviceId => {
         const serviceInfo = pricing[serviceId];
         const label = serviceInfo?.label || serviceId;
-        // Try to get price from tiers based on pet weight
+        
+        // ============================================
+        // 📏 WEIGHT-BASED PRICING
+        // ============================================
+        // Get price from tiers based on pet weight
+        // Small pets (≤5kg): Use small tier price
+        // Large pets (>5kg): Use large tier price
+        // ============================================
         let price = 0;
         if (serviceInfo?.tiers) {
           const weightLabel = booking.petWeight || '';
@@ -659,27 +687,63 @@ function generatePriceBreakdown(booking, pkg = null) {
     }
   }
 
-  // Get package price - try multiple sources (0 for single service)
+  // ============================================
+  // 📦 PACKAGE PRICING
+  // ============================================
+  // Get package price from multiple sources (fallback chain)
+  // Single services: packagePrice = 0 (no package, only services)
+  // Full packages: Try cost.packagePrice, then booking.totalPrice, then pkg.price
+  // ============================================
   const packagePrice = isSingleService ? 0 : (cost.packagePrice || booking.totalPrice || pkg?.price || 0);
 
-  // Calculate add-ons total
+  // ============================================
+  // ➕ ADD-ONS PRICING
+  // ============================================
+  // Calculate total price of all add-ons
+  // Add-ons can be added to both packages and single services
+  // Each add-on has its own price
+  // ============================================
   const addOns = booking.addOns || cost.addOns || [];
   const addOnsTotal = addOns.reduce((sum, addon) => sum + (parseFloat(addon.price) || 0), 0);
 
-  // Calculate subtotal
+  // ============================================
+  // 💵 SUBTOTAL CALCULATION
+  // ============================================
+  // Subtotal = Package Price + Add-ons + Single Services
+  // This is the total BEFORE booking fee discount
+  // ============================================
   const subtotal = packagePrice + addOnsTotal + singleServicesTotal;
 
-  // Get booking fee
+  // ============================================
+  // 🎫 BOOKING FEE
+  // ============================================
+  // Booking fee is paid upfront to confirm booking
+  // Deducted from final amount customer pays on arrival
+  // Example: ₱500 subtotal - ₱100 booking fee = ₱400 to pay on arrival
+  // ============================================
   const bookingFee = cost.bookingFee || 0;
 
-  // Check if status allows add-ons (confirmed, in progress) - show full breakdown
+  // ============================================
+  // 📊 STATUS-BASED DISPLAY LOGIC
+  // ============================================
   const statusLower = (booking.status || '').toLowerCase();
   const canAddAddons = ['confirmed', 'in progress', 'inprogress'].includes(statusLower);
   const isPaidStatus = ['confirmed', 'completed', 'in progress', 'inprogress'].includes(statusLower);
   
-  // Total Amount calculation:
-  // - For PENDING: Show full subtotal (customer hasn't paid booking fee yet)
-  // - For CONFIRMED/IN PROGRESS/COMPLETED: Show subtotal minus booking fee (already paid)
+  // ============================================
+  // 💰 TOTAL AMOUNT CALCULATION
+  // ============================================
+  // Logic differs based on booking status:
+  // 
+  // PENDING: Show full subtotal
+  // - Customer hasn't paid booking fee yet
+  // - Total = Subtotal (no deduction)
+  // 
+  // CONFIRMED/IN PROGRESS/COMPLETED: Show amount after booking fee
+  // - Customer already paid booking fee
+  // - Total = Subtotal - Booking Fee
+  // - This is what customer pays on arrival
+  // ============================================
   const totalAmount = isPaidStatus ? Math.max(0, subtotal - bookingFee) : subtotal;
 
   // Build add-ons list HTML
@@ -821,6 +885,18 @@ function setupSidebarNavigation() {
 // Switch view
 function switchView(view) {
   currentView = view;
+  
+  // Cleanup old real-time listeners to prevent memory leaks
+  if (bookingsListenerUnsubscribe) {
+    bookingsListenerUnsubscribe();
+    bookingsListenerUnsubscribe = null;
+    console.log('[Real-time] Bookings listener cleaned up');
+  }
+  if (packagesListenerUnsubscribe) {
+    packagesListenerUnsubscribe();
+    packagesListenerUnsubscribe = null;
+    console.log('[Real-time] Packages listener cleaned up');
+  }
 
   // Hide all views
   document.getElementById('overviewView').style.display = 'none';
@@ -964,6 +1040,45 @@ async function loadOverview() {
   await renderLiftBanPanel();
   await renderFeaturedCutsPanel();
   await renderCommunityReviewFeed('adminReviewFeed', 6);
+  
+  // Setup real-time listener for auto-refresh
+  if (typeof setupBookingsListener === 'function' && currentView === 'overview') {
+    // Remove old listener if exists
+    if (bookingsListenerUnsubscribe) {
+      bookingsListenerUnsubscribe();
+    }
+    
+    // Setup new listener
+    bookingsListenerUnsubscribe = setupBookingsListener(async (updatedBookings) => {
+      const users = await getUsers();
+      const customers = users.filter(u => u.role === 'customer');
+      const absences = getStaffAbsences();
+      
+      const totalBookings = updatedBookings.length;
+      const normalize = s => String(s || '').trim().toLowerCase();
+      const pendingBookings = updatedBookings.filter(b => normalize(b.status) === 'pending').length;
+      const confirmedBookings = updatedBookings.filter(b => ['confirmed', 'completed'].includes(normalize(b.status))).length;
+      const cancelledBookings = updatedBookings.filter(b => ['cancelled', 'cancelledbycustomer', 'cancelledbyadmin', 'cancelledbysystem'].includes(normalize(b.status))).length;
+      const totalCustomers = customers.length;
+      const totalRevenue = updatedBookings
+        .filter(b => ['confirmed', 'completed'].includes(normalize(b.status)))
+        .reduce((sum, b) => sum + (b.totalPrice || b.cost?.subtotal || 0), 0);
+      
+      updateStatsCards(totalBookings, pendingBookings, confirmedBookings, cancelledBookings, totalCustomers, totalRevenue);
+      
+      adminState.recentData = updatedBookings.sort((a, b) => b.createdAt - a.createdAt);
+      renderRecentBookings(adminState.recentData);
+      
+      const calendarData = buildCalendarDataset(updatedBookings, absences);
+      renderMegaCalendar('adminCalendar', calendarData);
+      
+      await renderCommunityReviewFeed('adminReviewFeed', 6);
+      
+      console.log('[Overview] Auto-refreshed from real-time update');
+    });
+    
+    console.log('[Overview] Real-time listener activated');
+  }
 }
 
 // Update stats cards with clickable/sortable functionality
@@ -1285,12 +1400,32 @@ function updateRecentPagination(bookings) {
   }
 }
 
+// Store the bookings listener unsubscribe function
+let bookingsListenerUnsubscribe = null;
+
 // Load pending bookings
 async function loadPendingBookings() {
   const bookings = await getBookings();
   const pendingBookings = bookings.filter(b => b.status === 'pending');
 
   renderPendingBookingsTable(pendingBookings);
+  
+  // Setup real-time listener for auto-refresh
+  if (typeof setupBookingsListener === 'function' && currentView === 'pending') {
+    // Remove old listener if exists
+    if (bookingsListenerUnsubscribe) {
+      bookingsListenerUnsubscribe();
+    }
+    
+    // Setup new listener
+    bookingsListenerUnsubscribe = setupBookingsListener((updatedBookings) => {
+      const updatedPending = updatedBookings.filter(b => b.status === 'pending');
+      renderPendingBookingsTable(updatedPending);
+      console.log('[Pending Bookings] Auto-refreshed from real-time update');
+    });
+    
+    console.log('[Pending Bookings] Real-time listener activated');
+  }
 
   // Setup search
   const searchInput = document.getElementById('pendingSearch');
@@ -1588,6 +1723,23 @@ async function loadConfirmedBookings() {
   // STRICT FILTER: Only 'confirmed'
   confirmedBookingsCache = bookings.filter(b => b.status === 'confirmed');
   renderConfirmedBookingsTable();
+  
+  // Setup real-time listener for auto-refresh
+  if (typeof setupBookingsListener === 'function' && currentView === 'confirmed') {
+    // Remove old listener if exists
+    if (bookingsListenerUnsubscribe) {
+      bookingsListenerUnsubscribe();
+    }
+    
+    // Setup new listener
+    bookingsListenerUnsubscribe = setupBookingsListener((updatedBookings) => {
+      confirmedBookingsCache = updatedBookings.filter(b => b.status === 'confirmed');
+      renderConfirmedBookingsTable();
+      console.log('[Confirmed Bookings] Auto-refreshed from real-time update');
+    });
+    
+    console.log('[Confirmed Bookings] Real-time listener activated');
+  }
 }
 
 // Render confirmed bookings table
@@ -2543,6 +2695,15 @@ async function openBookingDetail(bookingId) {
   `);
 }
 
+// ============================================
+// 👥 GROOMER ASSIGNMENT MODAL
+// ============================================
+// Allows admin to assign a groomer to a booking
+// Features:
+// - Filters out absent groomers automatically
+// - Recommends groomer with least workload (fair assignment)
+// - Shows capacity and availability for each groomer
+// ============================================
 async function openGroomerAssignmentModal(bookingId) {
   const bookings = await getBookings();
   const booking = bookings.find(b => b.id === bookingId);
@@ -2551,15 +2712,51 @@ async function openGroomerAssignmentModal(bookingId) {
   const groomers = await getGroomers();
   const absences = getStaffAbsences();
 
-  // Get only active groomers (not on absence) for the booking date
+  // Debug: Log absences and booking date
+  console.log('[Groomer Assignment Modal] Booking date:', booking.date);
+  console.log('[Groomer Assignment Modal] All absences:', absences);
+  console.log('[Groomer Assignment Modal] Approved absences for this date:', 
+    absences.filter(a => a.date === booking.date && a.status === 'approved')
+  );
+
+  // ============================================
+  // 🚫 FILTER OUT ABSENT GROOMERS
+  // ============================================
+  // Check if groomer has approved absence on booking date
+  // Absence matching logic:
+  // 1. Check staffId (user login ID, e.g., "sam")
+  // 2. Check groomerId (groomer system ID, e.g., "groomer-1")
+  // 3. Match booking date exactly
+  // 4. Only approved absences block assignment
+  // 
+  // Why check both IDs?
+  // - staffId: Set when groomer submits absence request (user ID)
+  // - groomerId: Set when linking staff to groomer system (groomer ID)
+  // - Both must be checked for compatibility with old/new data
+  // ============================================
   const activeGroomers = groomers.filter(groomer => {
-    const absence = absences.find(a =>
-      a.staffId === groomer.id &&
-      a.date === booking.date &&
-      a.status === 'approved'
-    );
-    return !absence;
+    const absence = absences.find(a => {
+      // ============================================
+      // 🔍 ABSENCE ID MATCHING LOGIC
+      // ============================================
+      // Check BOTH staffId and groomerId to handle:
+      // - Old absences (may only have staffId)
+      // - New absences (should have both staffId and groomerId)
+      // - Ensures absent groomers are always filtered out
+      // ============================================
+      const idMatch = a.staffId === groomer.id || a.groomerId === groomer.id;
+      return idMatch && a.date === booking.date && a.status === 'approved';
+    });
+    
+    // Debug: Log each groomer's absence status
+    if (absence) {
+      console.log(`[Groomer Assignment Modal] ${groomer.name} is ABSENT on ${booking.date}`, absence);
+    }
+    
+    return !absence; // Return true if NOT absent (available)
   });
+  
+  console.log('[Groomer Assignment Modal] Active groomers:', activeGroomers.map(g => g.name));
   
   // Helper to check if booking is confirmed (not pending, not cancelled)
   const isConfirmedStatus = (status) => {
@@ -2675,15 +2872,41 @@ async function openGroomerAssignmentModalForStartService(bookingId) {
   const groomers = await getGroomers();
   const absences = getStaffAbsences();
 
+  // Debug: Log absences and booking date
+  console.log('[Start Service Modal] Booking date:', booking.date);
+  console.log('[Start Service Modal] Booking date type:', typeof booking.date);
+  console.log('[Start Service Modal] All absences:', absences);
+  console.log('[Start Service Modal] All groomers:', groomers.map(g => ({ id: g.id, name: g.name })));
+  
+  // Check each absence against booking date
+  absences.forEach(a => {
+    console.log(`[Start Service Modal] Absence: staffId=${a.staffId}, date=${a.date}, status=${a.status}, matches booking date: ${a.date === booking.date}`);
+  });
+
   // Get only active groomers (not on absence) for the booking date
   const activeGroomers = groomers.filter(groomer => {
-    const absence = absences.find(a =>
-      a.staffId === groomer.id &&
-      a.date === booking.date &&
-      a.status === 'approved'
-    );
-    return !absence;
+    const absence = absences.find(a => {
+      // Check both staffId and groomerId for compatibility
+      const staffIdMatch = a.staffId === groomer.id || a.groomerId === groomer.id;
+      const dateMatch = a.date === booking.date;
+      const statusMatch = a.status === 'approved';
+      
+      console.log(`[Start Service Modal] Checking ${groomer.name}: staffId match=${staffIdMatch} (staffId: ${a.staffId}, groomerId: ${a.groomerId} vs groomer.id: ${groomer.id}), date match=${dateMatch} (${a.date} vs ${booking.date}), status match=${statusMatch} (${a.status})`);
+      
+      return staffIdMatch && dateMatch && statusMatch;
+    });
+    
+    // Debug: Log each groomer's absence status
+    if (absence) {
+      console.log(`[Start Service Modal] ❌ ${groomer.name} is ABSENT on ${booking.date}`, absence);
+      return false; // Exclude absent groomer
+    } else {
+      console.log(`[Start Service Modal] ✅ ${groomer.name} is AVAILABLE on ${booking.date}`);
+      return true; // Include available groomer
+    }
   });
+  
+  console.log('[Start Service Modal] Final active groomers:', activeGroomers.map(g => g.name));
   
   // Helper to check if booking is confirmed (not pending, not cancelled)
   const isConfirmedStatus = (status) => {
@@ -2942,87 +3165,136 @@ async function openRescheduleModal(bookingId) {
 
 async function handleRescheduleSubmit(event, bookingId) {
   event.preventDefault();
-  const groomerInput = document.getElementById('rescheduleGroomer');
-  const dateInput = document.getElementById('rescheduleDate');
-  const timeInput = document.getElementById('rescheduleTime');
-  const packageInput = document.getElementById('reschedulePackage');
-  const noteInput = document.getElementById('rescheduleNote');
-
-  const newGroomerId = groomerInput?.value;
-  const newDate = dateInput?.value;
-  const newTime = timeInput?.value;
-  const newPackageId = packageInput?.value;
-  if (!newGroomerId || !newDate || !newTime || !newPackageId) {
-    customAlert.warning('Please complete all fields.');
-    return;
+  
+  // Disable submit button to prevent duplicates
+  const submitBtn = event.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
   }
+  
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Rescheduling booking...');
+  }
+  
+  try {
+    const groomerInput = document.getElementById('rescheduleGroomer');
+    const dateInput = document.getElementById('rescheduleDate');
+    const timeInput = document.getElementById('rescheduleTime');
+    const packageInput = document.getElementById('reschedulePackage');
+    const noteInput = document.getElementById('rescheduleNote');
 
-  const bookings = await getBookings();
-  const booking = bookings.find(b => b.id === bookingId);
-  if (!booking) return;
-
-  // Check if the new time slot is available (only if groomer or date/time changed)
-  if ((newGroomerId !== booking.groomerId || newDate !== booking.date || newTime !== booking.time)) {
-    // Check availability excluding current booking
-    const conflictingBooking = bookings.find(b =>
-      b.id !== bookingId &&
-      b.groomerId === newGroomerId &&
-      b.date === newDate &&
-      b.time === newTime &&
-      !['Cancelled', 'CancelledByCustomer', 'CancelledByAdmin', 'CancelledBySystem'].includes(b.status)
-    );
-    if (conflictingBooking) {
-      // Cancel the conflicting booking automatically
-      // We need to pause execution here until user confirms
-      // Ask for confirmation then continue with the reschedule if confirmed
-      customAlert.confirm('Confirm', `This time slot is already booked by ${conflictingBooking.customerName}. Cancel that booking and reschedule this one?`).then((confirmed) => {
-        if (confirmed) {
-          conflictingBooking.status = 'Cancelled By Admin';
-          conflictingBooking.cancellationNote = `Cancelled due to reschedule conflict with booking ${getBookingDisplayCode(booking)}`;
-          logBookingHistory({
-            bookingId: conflictingBooking.id,
-            action: 'Cancelled',
-            message: `Cancelled due to reschedule conflict`,
-            actor: 'Admin'
-          });
-          saveBookings(bookings);
-
-          // Continue with rescheduling
-          proceedWithReschedule();
-        }
-      });
+    const newGroomerId = groomerInput?.value;
+    const newDate = dateInput?.value;
+    const newTime = timeInput?.value;
+    const newPackageId = packageInput?.value;
+    if (!newGroomerId || !newDate || !newTime || !newPackageId) {
+      customAlert.warning('Please complete all fields.');
+      // Re-enable button on validation error
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+      }
       return;
     }
-  }
 
-  proceedWithReschedule();
+    const bookings = await getBookings();
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) return;
 
-  function proceedWithReschedule() {
-    const pkListInner = Array.isArray(packages) ? packages : (packages ? Object.values(packages) : []);
-    const grListInner = Array.isArray(groomers) ? groomers : (groomers ? Object.values(groomers) : []);
-    const selectedPackage = pkListInner.find(pkg => pkg.id === newPackageId);
-    const selectedGroomer = grListInner.find(g => g.id === newGroomerId);
+    // Check if the new time slot is available (only if groomer or date/time changed)
+    if ((newGroomerId !== booking.groomerId || newDate !== booking.date || newTime !== booking.time)) {
+      // Check availability excluding current booking
+      const conflictingBooking = bookings.find(b =>
+        b.id !== bookingId &&
+        b.groomerId === newGroomerId &&
+        b.date === newDate &&
+        b.time === newTime &&
+        !['Cancelled', 'CancelledByCustomer', 'CancelledByAdmin', 'CancelledBySystem'].includes(b.status)
+      );
+      if (conflictingBooking) {
+        // Hide loading and ask for confirmation
+        if (typeof hideLoadingOverlay === 'function') {
+          hideLoadingOverlay();
+        }
+        
+        // Cancel the conflicting booking automatically
+        // We need to pause execution here until user confirms
+        // Ask for confirmation then continue with the reschedule if confirmed
+        customAlert.confirm('Confirm', `This time slot is already booked by ${conflictingBooking.customerName}. Cancel that booking and reschedule this one?`).then((confirmed) => {
+          if (confirmed) {
+            // Show loading again for the actual reschedule
+            if (typeof showLoadingOverlay === 'function') {
+              showLoadingOverlay('Rescheduling booking...');
+            }
+            
+            conflictingBooking.status = 'Cancelled By Admin';
+            conflictingBooking.cancellationNote = `Cancelled due to reschedule conflict with booking ${getBookingDisplayCode(booking)}`;
+            logBookingHistory({
+              bookingId: conflictingBooking.id,
+              action: 'Cancelled',
+              message: `Cancelled due to reschedule conflict`,
+              actor: 'Admin'
+            });
+            saveBookings(bookings);
 
-    booking.groomerId = newGroomerId;
-    booking.groomerName = selectedGroomer ? selectedGroomer.name : booking.groomerName;
-    booking.date = newDate;
-    booking.time = newTime;
-    booking.packageId = newPackageId;
-    booking.packageName = selectedPackage ? selectedPackage.name : booking.packageName;
-    booking.status = 'Pending';
+            // Continue with rescheduling
+            proceedWithReschedule();
+          }
+        });
+        return;
+      }
+    }
 
-    saveBookings(bookings);
-    logBookingHistory({
-      bookingId,
-      action: 'Rescheduled',
-      message: `Moved to ${formatDate(newDate)} at ${formatTime(newTime)}. ${selectedPackage ? selectedPackage.name : ''} with ${selectedGroomer ? selectedGroomer.name : 'groomer'}`,
-      actor: 'Admin',
-      note: noteInput?.value?.trim() || ''
-    });
+    proceedWithReschedule();
 
-    modalSystem.close();
-    switchView(currentView);
-    customAlert.success('Booking rescheduled and set to pending for confirmation.');
+    function proceedWithReschedule() {
+      const pkListInner = Array.isArray(packages) ? packages : (packages ? Object.values(packages) : []);
+      const grListInner = Array.isArray(groomers) ? groomers : (groomers ? Object.values(groomers) : []);
+      const selectedPackage = pkListInner.find(pkg => pkg.id === newPackageId);
+      const selectedGroomer = grListInner.find(g => g.id === newGroomerId);
+
+      booking.groomerId = newGroomerId;
+      booking.groomerName = selectedGroomer ? selectedGroomer.name : booking.groomerName;
+      booking.date = newDate;
+      booking.time = newTime;
+      booking.packageId = newPackageId;
+      booking.packageName = selectedPackage ? selectedPackage.name : booking.packageName;
+      booking.status = 'Pending';
+
+      saveBookings(bookings);
+      logBookingHistory({
+        bookingId,
+        action: 'Rescheduled',
+        message: `Moved to ${formatDate(newDate)} at ${formatTime(newTime)}. ${selectedPackage ? selectedPackage.name : ''} with ${selectedGroomer ? selectedGroomer.name : 'groomer'}`,
+        actor: 'Admin',
+        note: noteInput?.value?.trim() || ''
+      });
+
+      modalSystem.close();
+      switchView(currentView);
+      customAlert.success('Booking rescheduled and set to pending for confirmation.');
+      
+      // Hide loading screen
+      if (typeof hideLoadingOverlay === 'function') {
+        hideLoadingOverlay();
+      }
+    }
+  } catch (error) {
+    console.error('Error rescheduling booking:', error);
+    customAlert.error('Error', 'Failed to reschedule booking. Please try again.');
+    
+    // Re-enable button on error
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+    
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
   }
 }
 
@@ -3186,38 +3458,60 @@ async function openMediaModal(bookingId) {
 }
 
 async function handleMediaSubmit(bookingId) {
-  const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 MB in bytes
-  const beforeInput = document.getElementById('beforeImageInput');
-  const afterInput = document.getElementById('afterImageInput');
-
-  // Validate data URLs/inputs for size
-  const beforeValue = beforeInput?.value?.trim() || '';
-  const afterValue = afterInput?.value?.trim() || '';
-
-  // Rough check: Data URLs are ~1.33x the original size
-  if (beforeValue.length > MAX_FILE_SIZE * 1.5) {
-    customAlert.error('Before image is too large (max 8 MB). Please choose a smaller file.');
-    console.warn('Before image exceeds 8 MB limit. Size:', beforeValue.length);
-    return;
+  // Find and disable save button to prevent duplicates
+  const saveBtn = document.querySelector('[onclick*="handleMediaSubmit"]')?.closest('.modal-actions')?.querySelector('button.btn-primary');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = '0.6';
   }
-  if (afterValue.length > MAX_FILE_SIZE * 1.5) {
-    customAlert.error('After image is too large (max 8 MB). Please choose a smaller file.');
-    console.warn('After image exceeds 8 MB limit. Size:', afterValue.length);
-    return;
+  
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Uploading gallery...');
   }
-
-  const bookings = await getBookings();
-  const booking = bookings.find(b => b.id === bookingId);
-  if (!booking) {
-    customAlert.error('Booking not found.');
-    console.error('Booking not found for ID:', bookingId);
-    return;
-  }
-
-  booking.beforeImage = beforeValue;
-  booking.afterImage = afterValue;
-
+  
   try {
+    const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 MB in bytes
+    const beforeInput = document.getElementById('beforeImageInput');
+    const afterInput = document.getElementById('afterImageInput');
+
+    // Validate data URLs/inputs for size
+    const beforeValue = beforeInput?.value?.trim() || '';
+    const afterValue = afterInput?.value?.trim() || '';
+
+    // Rough check: Data URLs are ~1.33x the original size
+    if (beforeValue.length > MAX_FILE_SIZE * 1.5) {
+      customAlert.error('Before image is too large (max 8 MB). Please choose a smaller file.');
+      console.warn('Before image exceeds 8 MB limit. Size:', beforeValue.length);
+      // Re-enable button on validation error
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
+      }
+      return;
+    }
+    if (afterValue.length > MAX_FILE_SIZE * 1.5) {
+      customAlert.error('After image is too large (max 8 MB). Please choose a smaller file.');
+      console.warn('After image exceeds 8 MB limit. Size:', afterValue.length);
+      // Re-enable button on validation error
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
+      }
+      return;
+    }
+
+    const bookings = await getBookings();
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) {
+      customAlert.error('Booking not found.');
+      console.error('Booking not found for ID:', bookingId);
+      return;
+    }
+
+    booking.beforeImage = beforeValue;
+    booking.afterImage = afterValue;
+
     console.log(`[Media Upload] Saving booking ${bookingId} with images...`);
     console.log(`[Media Upload] Before image size: ${beforeValue.length} bytes`);
     console.log(`[Media Upload] After image size: ${afterValue.length} bytes`);
@@ -3238,6 +3532,17 @@ async function handleMediaSubmit(bookingId) {
   } catch (error) {
     console.error(`[Media Upload] ❌ Failed to save booking ${bookingId}:`, error);
     customAlert.error('Failed to save gallery. Check console for details.');
+    
+    // Re-enable button on error
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+    }
+  } finally {
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
   }
 }
 
@@ -4246,63 +4551,78 @@ window.saveBookingFee = saveBookingFee;
 
 // Confirm booking
 async function confirmBooking(bookingId) {
-  const bookings = await getBookings();
-  const booking = bookings.find(b => b.id === bookingId);
-
-  if (!booking) return;
-
-  // Check if groomer is assigned
-  if (!booking.groomerId) {
-    alert('❌ Please assign a groomer before confirming this booking.');
-    openGroomerAssignmentModal(bookingId);
-    return;
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Confirming booking...');
   }
-
-  // Update status to confirmed (move from pending to confirmed)
-  booking.status = 'confirmed';
-  booking.confirmedAt = Date.now();
   
-  // Add notification for customer
-  booking.customerNotification = {
-    type: 'confirmed',
-    message: `Your booking for ${booking.petName || 'your pet'} on ${formatDate(booking.date)} has been confirmed! Groomer: ${booking.groomerName || 'TBD'}`,
-    createdAt: Date.now(),
-    seen: false
-  };
+  try {
+    const bookings = await getBookings();
+    const booking = bookings.find(b => b.id === bookingId);
 
-  // Ensure cost object exists and has correct structure
-  if (!booking.cost) {
-    booking.cost = {};
+    if (!booking) return;
+
+    // Check if groomer is assigned
+    if (!booking.groomerId) {
+      customAlert.warning('Missing Groomer', 'Please assign a groomer before confirming this booking.');
+      openGroomerAssignmentModal(bookingId);
+      return;
+    }
+
+    // Update status to confirmed (move from pending to confirmed)
+    booking.status = 'confirmed';
+    booking.confirmedAt = Date.now();
+    
+    // Add notification for customer
+    booking.customerNotification = {
+      type: 'confirmed',
+      message: `Your booking for ${booking.petName || 'your pet'} on ${formatDate(booking.date)} has been confirmed! Groomer: ${booking.groomerName || 'TBD'}`,
+      createdAt: Date.now(),
+      seen: false
+    };
+
+    // Ensure cost object exists and has correct structure
+    if (!booking.cost) {
+      booking.cost = {};
+    }
+
+    // Calculate and store price breakdown (handle single service bookings)
+    const isSingleServiceBooking = booking.packageId === 'single-service';
+    const packagePrice = isSingleServiceBooking ? 0 : (booking.cost.packagePrice || booking.totalPrice || 0);
+    const servicesTotal = (booking.cost?.services || []).reduce((sum, s) => sum + (s.price || 0), 0);
+    const addOnsTotal = (booking.addOns || []).reduce((sum, addon) => sum + (parseFloat(addon.price) || 0), 0);
+    booking.cost.subtotal = packagePrice + servicesTotal + addOnsTotal;
+    booking.cost.totalAmount = booking.cost.subtotal;
+
+    // Booking fee doesn't change total
+    if (!booking.cost.bookingFee) {
+      booking.cost.bookingFee = 0;
+    }
+
+    // Calculate amount to pay on visit
+    booking.cost.amountToPayOnArrival = Math.max(0, booking.cost.subtotal - booking.cost.bookingFee);
+
+    await saveBookings(bookings);
+    logBookingHistory({
+      bookingId,
+      action: 'Confirmed',
+      message: `Confirmed and moved to In Progress with ${booking.groomerName} for ${formatDate(booking.date)} at ${formatTime(booking.time)}`,
+      actor: 'Admin'
+    });
+    modalSystem.close();
+
+    // Reload to in-progress view so user can see it
+    switchView('inprogress');
+    customAlert.success('Booking confirmed and moved to In Progress!');
+  } catch (error) {
+    console.error('Error confirming booking:', error);
+    customAlert.error('Error', 'Failed to confirm booking. Please try again.');
+  } finally {
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
   }
-
-  // Calculate and store price breakdown (handle single service bookings)
-  const isSingleServiceBooking = booking.packageId === 'single-service';
-  const packagePrice = isSingleServiceBooking ? 0 : (booking.cost.packagePrice || booking.totalPrice || 0);
-  const servicesTotal = (booking.cost?.services || []).reduce((sum, s) => sum + (s.price || 0), 0);
-  const addOnsTotal = (booking.addOns || []).reduce((sum, addon) => sum + (parseFloat(addon.price) || 0), 0);
-  booking.cost.subtotal = packagePrice + servicesTotal + addOnsTotal;
-  booking.cost.totalAmount = booking.cost.subtotal;
-
-  // Booking fee doesn't change total
-  if (!booking.cost.bookingFee) {
-    booking.cost.bookingFee = 0;
-  }
-
-  // Calculate amount to pay on visit
-  booking.cost.amountToPayOnArrival = Math.max(0, booking.cost.subtotal - booking.cost.bookingFee);
-
-  saveBookings(bookings);
-  logBookingHistory({
-    bookingId,
-    action: 'Confirmed',
-    message: `Confirmed and moved to In Progress with ${booking.groomerName} for ${formatDate(booking.date)} at ${formatTime(booking.time)}`,
-    actor: 'Admin'
-  });
-  modalSystem.close();
-
-  // Reload to in-progress view so user can see it
-  switchView('inprogress');
-  alert('✅ Booking confirmed and moved to In Progress!');
 }
 
 // Complete booking (grooming service finished)
@@ -4381,44 +4701,72 @@ function closeGroomingNotesModal() {
 }
 
 async function submitGroomingNotes(bookingId) {
-  const notes = document.getElementById('groomingNotesInput').value.trim();
-
-  let bookings = [];
-  try {
-    bookings = typeof getBookings === 'function' ? await getBookings() : [];
-  } catch (e) {
-    console.warn('submitGroomingNotes: getBookings failed', e);
-    bookings = typeof getBookingsSync === 'function' ? getBookingsSync() : [];
+  // Find and disable submit button to prevent duplicates
+  const submitBtn = document.querySelector('#groomingNotesOverlay button.btn-success');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
   }
+  
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Completing booking...');
+  }
+  
+  try {
+    const notes = document.getElementById('groomingNotesInput').value.trim();
 
-  if (!Array.isArray(bookings)) bookings = [];
-
-  const booking = bookings.find(b => b.id === bookingId);
-
-  if (booking) {
-    booking.status = 'completed';
-    booking.groomingNotes = notes;
-    booking.completedAt = toLocalISO(new Date());
-
+    let bookings = [];
     try {
-      if (typeof saveBookings === 'function') {
-        await saveBookings(bookings);
-      }
+      bookings = typeof getBookings === 'function' ? await getBookings() : [];
     } catch (e) {
-      console.error('submitGroomingNotes: saveBookings failed', e);
+      console.warn('submitGroomingNotes: getBookings failed', e);
+      bookings = typeof getBookingsSync === 'function' ? getBookingsSync() : [];
     }
 
-    logBookingHistory({
-      bookingId,
-      action: 'Completed',
-      message: `Grooming completed on ${formatDate(toLocalISO(new Date()))}. Service: ${notes || 'No details provided'}`,
-      actor: 'Admin'
-    });
-    closeGroomingNotesModal();
+    if (!Array.isArray(bookings)) bookings = [];
 
-    // Reload current view
-    switchView(currentView);
-    alert('Booking marked as completed!');
+    const booking = bookings.find(b => b.id === bookingId);
+
+    if (booking) {
+      booking.status = 'completed';
+      booking.groomingNotes = notes;
+      booking.completedAt = toLocalISO(new Date());
+
+      try {
+        if (typeof saveBookings === 'function') {
+          await saveBookings(bookings);
+        }
+      } catch (e) {
+        console.error('submitGroomingNotes: saveBookings failed', e);
+      }
+
+      logBookingHistory({
+        bookingId,
+        action: 'Completed',
+        message: `Grooming completed on ${formatDate(toLocalISO(new Date()))}. Service: ${notes || 'No details provided'}`,
+        actor: 'Admin'
+      });
+      closeGroomingNotesModal();
+
+      // Reload current view
+      switchView(currentView);
+      customAlert.success('Booking marked as completed!');
+    }
+  } catch (error) {
+    console.error('Error completing booking:', error);
+    customAlert.error('Error', 'Failed to complete booking. Please try again.');
+    
+    // Re-enable button on error
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+  } finally {
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
   }
 }
 
@@ -4685,6 +5033,9 @@ document.addEventListener('DOMContentLoaded', function () {
 // Add-on Management Logic
 // ============================================
 
+// Store the listener unsubscribe function
+let packagesListenerUnsubscribe = null;
+
 async function loadAddonsView() {
   const container = document.getElementById('addonsTable');
   if (!container) return;
@@ -4696,6 +5047,23 @@ async function loadAddonsView() {
   const addons = packages.filter(p => p.type === 'addon');
 
   renderAddonsTable(addons);
+  
+  // Setup real-time listener for auto-refresh
+  if (typeof setupPackagesListener === 'function') {
+    // Remove old listener if exists
+    if (packagesListenerUnsubscribe) {
+      packagesListenerUnsubscribe();
+    }
+    
+    // Setup new listener
+    packagesListenerUnsubscribe = setupPackagesListener((updatedPackages) => {
+      const updatedAddons = updatedPackages.filter(p => p.type === 'addon');
+      renderAddonsTable(updatedAddons);
+      console.log('[Add-ons] Auto-refreshed from real-time update');
+    });
+    
+    console.log('[Add-ons] Real-time listener activated');
+  }
 }
 
 function renderAddonsTable(addons) {
@@ -4817,38 +5185,67 @@ function addTierRow() {
 
 async function submitAddonCreate(e) {
   e.preventDefault();
-  const name = document.getElementById('newAddonName').value;
-  const duration = parseInt(document.getElementById('newAddonDuration').value);
-  const mode = document.querySelector('input[name="pricingMode"]:checked').value;
-
-  let tiers = [];
-  if (mode === 'fixed') {
-    const price = parseInt(document.getElementById('newAddonPrice').value) || 0;
-    tiers.push({ label: 'Per Service', price: price });
-  } else {
-    document.querySelectorAll('.tier-row').forEach(row => {
-      const label = row.querySelector('.tier-label').value;
-      const price = parseInt(row.querySelector('.tier-price').value) || 0;
-      if (label) tiers.push({ label, price });
-    });
+  
+  // Disable submit button to prevent duplicates
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
   }
+  
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Creating add-on...');
+  }
+  
+  try {
+    const name = document.getElementById('newAddonName').value;
+    const duration = parseInt(document.getElementById('newAddonDuration').value);
+    const mode = document.querySelector('input[name="pricingMode"]:checked').value;
 
-  const newAddon = {
-    id: 'addon-' + Date.now(),
-    name: name,
-    type: 'addon',
-    duration: duration,
-    tiers: tiers,
-    createdAt: Date.now()
-  };
+    let tiers = [];
+    if (mode === 'fixed') {
+      const price = parseInt(document.getElementById('newAddonPrice').value) || 0;
+      tiers.push({ label: 'Per Service', price: price });
+    } else {
+      document.querySelectorAll('.tier-row').forEach(row => {
+        const label = row.querySelector('.tier-label').value;
+        const price = parseInt(row.querySelector('.tier-price').value) || 0;
+        if (label) tiers.push({ label, price });
+      });
+    }
 
-  const packages = await getPackages();
-  packages.push(newAddon);
-  await savePackages(packages);
+    const newAddon = {
+      id: 'addon-' + Date.now(),
+      name: name,
+      type: 'addon',
+      duration: duration,
+      tiers: tiers,
+      createdAt: Date.now()
+    };
 
-  modalSystem.close();
-  loadAddonsView();
-  customAlert.success('Add-on created successfully');
+    const packages = await getPackages();
+    packages.push(newAddon);
+    await savePackages(packages);
+
+    modalSystem.close();
+    await loadAddonsView();
+    customAlert.success('Add-on created successfully');
+  } catch (error) {
+    console.error('Error creating add-on:', error);
+    customAlert.error('Error', 'Failed to create add-on. Please try again.');
+    
+    // Re-enable button on error
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+  } finally {
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
+  }
 }
 
 async function handleAddonDelete(id) {
@@ -4857,7 +5254,7 @@ async function handleAddonDelete(id) {
     const packages = await getPackages();
     const newPackages = packages.filter(p => p.id !== id);
     await savePackages(newPackages);
-    loadAddonsView();
+    await loadAddonsView();
     customAlert.success('Add-on deleted.');
   });
 }
@@ -4919,33 +5316,67 @@ function addEditTierRow() {
 
 async function submitAddonEdit(e, id) {
   e.preventDefault();
-  const name = document.getElementById('editAddonName').value;
-  const duration = parseInt(document.getElementById('editAddonDuration').value);
-
-  let tiers = [];
-  document.getElementById('editTierRows').querySelectorAll('.tier-row').forEach(row => {
-    const label = row.querySelector('.tier-label').value;
-    const price = parseInt(row.querySelector('.tier-price').value) || 0;
-    if (label) tiers.push({ label, price });
-  });
-
-  if (tiers.length === 0) {
-    customAlert.warning('Please add at least one price tier.');
-    return;
+  
+  // Disable submit button to prevent duplicates
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
   }
+  
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Updating add-on...');
+  }
+  
+  try {
+    const name = document.getElementById('editAddonName').value;
+    const duration = parseInt(document.getElementById('editAddonDuration').value);
 
-  const packages = await getPackages();
-  const idx = packages.findIndex(p => p.id === id);
-  if (idx === -1) return;
+    let tiers = [];
+    document.getElementById('editTierRows').querySelectorAll('.tier-row').forEach(row => {
+      const label = row.querySelector('.tier-label').value;
+      const price = parseInt(row.querySelector('.tier-price').value) || 0;
+      if (label) tiers.push({ label, price });
+    });
 
-  packages[idx].name = name;
-  packages[idx].duration = duration;
-  packages[idx].tiers = tiers;
+    if (tiers.length === 0) {
+      customAlert.warning('Please add at least one price tier.');
+      // Re-enable button on validation error
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+      }
+      return;
+    }
 
-  await savePackages(packages);
-  modalSystem.close();
-  loadAddonsView();
-  customAlert.success('Add-on updated.');
+    const packages = await getPackages();
+    const idx = packages.findIndex(p => p.id === id);
+    if (idx === -1) return;
+
+    packages[idx].name = name;
+    packages[idx].duration = duration;
+    packages[idx].tiers = tiers;
+
+    await savePackages(packages);
+    modalSystem.close();
+    await loadAddonsView();
+    customAlert.success('Add-on updated.');
+  } catch (error) {
+    console.error('Error updating add-on:', error);
+    customAlert.error('Error', 'Failed to update add-on. Please try again.');
+    
+    // Re-enable button on error
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+  } finally {
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
+  }
 }
 
 window.loadAddonsView = loadAddonsView;
@@ -5460,6 +5891,26 @@ window.loadInProgressBookings = async function () {
   );
   inprogressBookingsCache = inprogress;
   renderInProgressBookingsTable(inprogress);
+  
+  // Setup real-time listener for auto-refresh
+  if (typeof setupBookingsListener === 'function' && currentView === 'inprogress') {
+    // Remove old listener if exists
+    if (bookingsListenerUnsubscribe) {
+      bookingsListenerUnsubscribe();
+    }
+    
+    // Setup new listener
+    bookingsListenerUnsubscribe = setupBookingsListener((updatedBookings) => {
+      const updatedInProgress = updatedBookings.filter(b =>
+        b.status === 'In Progress' || b.status === 'inprogress' || b.status === 'in_progress'
+      );
+      inprogressBookingsCache = updatedInProgress;
+      renderInProgressBookingsTable(updatedInProgress);
+      console.log('[In Progress Bookings] Auto-refreshed from real-time update');
+    });
+    
+    console.log('[In Progress Bookings] Real-time listener activated');
+  }
 };
 
 
@@ -7063,7 +7514,10 @@ async function openRevenueDetailsModal() {
 window.openRevenueDetailsModal = openRevenueDetailsModal;
 
 // ============================================
-// Groomer Workload Management
+// 📊 GROOMER WORKLOAD MANAGEMENT SYSTEM
+// ============================================
+// Tracks and displays groomer workload, capacity, and fair assignment
+// Used by admin to balance work distribution and monitor capacity
 // ============================================
 
 // Load groomer workload view
@@ -7094,7 +7548,18 @@ function setWorkloadDateTomorrow() {
   loadGroomerWorkload();
 }
 
-// Load groomer workload for selected date
+// ============================================
+// 📊 GROOMER WORKLOAD CALCULATION
+// ============================================
+// Calculates workload metrics for each groomer on selected date
+// Metrics include:
+// - Daily bookings (today's workload)
+// - Total confirmed bookings (all-time for fair assignment)
+// - Yesterday's picks (for fair rotation)
+// - Available capacity (remaining slots)
+// - Utilization rate (% of capacity used)
+// - Absence status (unavailable dates)
+// ============================================
 async function loadGroomerWorkload() {
   const selectedDate = document.getElementById('workloadDatePicker').value;
   if (!selectedDate) return;
@@ -7114,41 +7579,74 @@ async function loadGroomerWorkload() {
       return;
     }
 
-    // Calculate workload stats for each groomer
+    // ============================================
+    // 📈 CALCULATE WORKLOAD STATS FOR EACH GROOMER
+    // ============================================
     const groomerStats = await Promise.all(groomers.map(async (groomer) => {
-      // Get daily bookings for the selected date (exclude cancelled)
+      // ============================================
+      // 📅 DAILY BOOKINGS (Selected Date Only)
+      // ============================================
+      // Count bookings for the selected date
+      // Excludes cancelled bookings (all cancellation types)
+      // Used to calculate today's workload and available capacity
+      // ============================================
       const dailyBookings = bookings.filter(b => 
         b.groomerId === groomer.id && 
         b.date === selectedDate &&
         !['cancelled', 'cancelledByCustomer', 'cancelledByAdmin', 'cancelledBySystem'].includes((b.status || '').toLowerCase())
       );
 
-      // Get total CONFIRMED bookings only (all time) - exclude pending and cancelled
-      // This ensures fair assignment is based on actual completed/confirmed work
+      // ============================================
+      // 🎯 TOTAL CONFIRMED BOOKINGS (All Time)
+      // ============================================
+      // Count ALL confirmed/completed bookings (not just today)
+      // Excludes pending and cancelled bookings
+      // Used for FAIR ASSIGNMENT - groomers with fewer total bookings get priority
+      // This ensures work is distributed evenly over time
+      // ============================================
       const totalBookings = bookings.filter(b => 
         b.groomerId === groomer.id &&
         ['confirmed', 'completed', 'inprogress', 'in progress'].includes((b.status || '').toLowerCase())
       );
       
-      // Get yesterday's date for fair assignment priority
+      // ============================================
+      // 📆 YESTERDAY'S PICKS (Fair Rotation)
+      // ============================================
+      // Count how many times this groomer was picked yesterday
+      // Used for daily fair rotation - groomers picked less yesterday get priority today
+      // Helps balance workload on a day-to-day basis
+      // ============================================
       const yesterday = new Date(selectedDate);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split('T')[0];
       
-      // Count yesterday's confirmed picks for fair assignment
       const yesterdayPicks = bookings.filter(b => 
         b.groomerId === groomer.id &&
         b.date === yesterdayStr &&
         ['confirmed', 'completed', 'inprogress', 'in progress'].includes((b.status || '').toLowerCase())
       ).length;
 
-      // Check capacity and availability
+      // ============================================
+      // ✅ CAPACITY AND AVAILABILITY CHECK
+      // ============================================
+      // hasCapacity: Can groomer accept more bookings today?
+      // isAbsent: Is groomer on approved leave for this date?
+      // maxDaily: Maximum bookings per day (default: 3)
+      // availableSlots: How many more bookings can be accepted
+      // ============================================
       const hasCapacity = (typeof groomerHasCapacity === 'function') ? await groomerHasCapacity(groomer.id, selectedDate) : true;
       const isAbsent = (typeof isGroomerAbsent === 'function') ? isGroomerAbsent(groomer.id, selectedDate) : false;
       
       const maxDaily = groomer.maxDailyBookings || 3;
       const availableSlots = Math.max(0, maxDaily - dailyBookings.length);
 
+      // ============================================
+      // 📊 UTILIZATION RATE CALCULATION
+      // ============================================
+      // Percentage of daily capacity used
+      // Example: 2 bookings / 3 max = 66.7% utilization
+      // 100% = fully booked, 0% = no bookings
+      // ============================================
       return {
         groomer,
         dailyBookings,

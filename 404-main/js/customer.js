@@ -51,6 +51,30 @@ async function loadCustomerDashboard() {
   // Refresh notifications every 30 seconds
   setInterval(updateCustomerNotificationBadge, 30000);
   
+  // Setup real-time listener for auto-refresh of bookings
+  if (typeof setupBookingsListener === 'function') {
+    setupBookingsListener(async (updatedBookings) => {
+      // Filter bookings for current user
+      const userBookings = updatedBookings.filter(b => b.customerId === user.id);
+      
+      // Update quick stats
+      await loadQuickStats();
+      
+      // Re-render bookings
+      await renderCustomerBookings();
+      
+      // Update calendar
+      renderCustomerCalendar(userBookings);
+      
+      // Update notifications
+      updateCustomerNotificationBadge();
+      
+      console.log('[Customer Dashboard] Auto-refreshed from real-time update');
+    });
+    
+    console.log('[Customer Dashboard] Real-time listener activated');
+  }
+  
   // Close notification panel when clicking outside
   document.addEventListener('click', function(e) {
     const panel = document.getElementById('customerNotificationPanel');
@@ -247,18 +271,57 @@ function switchCustomerView(view) {
   }
 }
 
-// Helper function to normalize status for comparison
+// ============================================
+// 📋 BOOKING STATUS HELPER FUNCTIONS
+// ============================================
+// These functions handle status comparison and validation
+// Status can be stored in different formats (spaces, case, etc.)
+// These helpers normalize and check status consistently
+// ============================================
+
+/**
+ * Normalize booking status for comparison
+ * Handles different status formats: "In Progress", "in progress", "inprogress"
+ * 
+ * @param {string} status - Booking status
+ * @returns {string} Normalized status (lowercase, no spaces)
+ * 
+ * Example:
+ * - "In Progress" -> "inprogress"
+ * - "Confirmed" -> "confirmed"
+ * - "Cancelled By Customer" -> "cancelledbycustomer"
+ */
 function normalizeStatus(status) {
   return (status || '').toLowerCase().replace(/\s+/g, '');
 }
 
-// Helper function to check if status is "in progress" (handles different formats)
+/**
+ * Check if booking status is "In Progress"
+ * Handles multiple formats: "inprogress", "in progress", "In Progress"
+ * 
+ * @param {string} status - Booking status
+ * @returns {boolean} True if status is "in progress"
+ */
 function isInProgressStatus(status) {
   const normalized = normalizeStatus(status);
   return normalized === 'inprogress' || normalized === 'in progress';
 }
 
-// Helper function to check if booking fee is paid (confirmed, in progress, or completed)
+/**
+ * Check if booking fee has been paid
+ * Booking fee is considered paid when status is:
+ * - confirmed (customer paid booking fee)
+ * - inprogress (service started, fee already paid)
+ * - completed (service done, fee was paid)
+ * 
+ * @param {string} status - Booking status
+ * @returns {boolean} True if booking fee is paid
+ * 
+ * Used for:
+ * - Calculating amount to pay on arrival (subtract booking fee if paid)
+ * - Determining if customer can still cancel (can't cancel if fee paid)
+ * - Showing correct price breakdown
+ */
 function isBookingFeePaid(status) {
   const normalized = normalizeStatus(status);
   return ['confirmed', 'inprogress', 'completed'].includes(normalized);
@@ -1808,40 +1871,68 @@ window.setRating = setRating;
 
 // Save review function
 async function saveReview(bookingId) {
-  let bookings = [];
-  try {
-    bookings = typeof getBookings === 'function'
-      ? await getBookings()
-      : (typeof getBookingsSync === 'function' ? getBookingsSync() : []);
-  } catch (e) {
-    console.warn('saveReview: getBookings failed, using sync fallback', e);
-    bookings = typeof getBookingsSync === 'function' ? getBookingsSync() : [];
+  // Find and disable save button to prevent duplicates
+  const saveBtn = document.querySelector(`[onclick*="saveReview('${bookingId}')"]`)?.closest('.review-actions')?.querySelector('button');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = '0.6';
   }
-  if (!Array.isArray(bookings)) bookings = [];
-
-  const booking = bookings.find(b => b.id === bookingId);
-  if (!booking) return;
-
-  const reviewText = document.getElementById(`review-${bookingId}`)?.value?.trim() || '';
-  const staffReviewText = document.getElementById(`staff-review-${bookingId}`)?.value?.trim() || '';
-
-  booking.review = reviewText;
-  booking.staffReview = staffReviewText;
-
+  
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Saving review...');
+  }
+  
   try {
-    if (typeof saveBookings === 'function') {
-      await saveBookings(bookings);
-    } else {
-      localStorage.setItem('bookings', JSON.stringify(bookings));
+    let bookings = [];
+    try {
+      bookings = typeof getBookings === 'function'
+        ? await getBookings()
+        : (typeof getBookingsSync === 'function' ? getBookingsSync() : []);
+    } catch (e) {
+      console.warn('saveReview: getBookings failed, using sync fallback', e);
+      bookings = typeof getBookingsSync === 'function' ? getBookingsSync() : [];
     }
-  } catch (err) {
-    console.error('saveReview: save failed', err);
+    if (!Array.isArray(bookings)) bookings = [];
+
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) return;
+
+    const reviewText = document.getElementById(`review-${bookingId}`)?.value?.trim() || '';
+    const staffReviewText = document.getElementById(`staff-review-${bookingId}`)?.value?.trim() || '';
+
+    booking.review = reviewText;
+    booking.staffReview = staffReviewText;
+
+    try {
+      if (typeof saveBookings === 'function') {
+        await saveBookings(bookings);
+      } else {
+        localStorage.setItem('bookings', JSON.stringify(bookings));
+      }
+    } catch (err) {
+      console.error('saveReview: save failed', err);
+    }
+
+    // refresh UI if renderer exists
+    try { if (typeof renderCustomerBookings === 'function') await renderCustomerBookings(); } catch (e) { /* ignore */ }
+
+    customAlert.success('Review saved.');
+  } catch (error) {
+    console.error('Error saving review:', error);
+    customAlert.error('Error', 'Failed to save review. Please try again.');
+    
+    // Re-enable button on error
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+    }
+  } finally {
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
   }
-
-  // refresh UI if renderer exists
-  try { if (typeof renderCustomerBookings === 'function') await renderCustomerBookings(); } catch (e) { /* ignore */ }
-
-  customAlert.success('Review saved.');
 }
 
 // Expose globally for inline onclick attributes
@@ -2966,6 +3057,18 @@ function setupProfileFormListeners() {
 
 // Update customer profile
 async function updateCustomerProfile() {
+  // Find and disable submit button to prevent duplicates
+  const submitBtn = document.getElementById('customerProfileForm')?.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
+  }
+  
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Updating profile...');
+  }
+  
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -3018,11 +3121,34 @@ async function updateCustomerProfile() {
   } catch (error) {
     console.error('Error updating profile:', error);
     customAlert.error('Update Failed', 'Could not update your profile. Please try again.');
+    
+    // Re-enable button on error
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+  } finally {
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
   }
 }
 
 // Update pet profile
 async function updatePetProfile() {
+  // Find and disable submit button to prevent duplicates
+  const submitBtn = document.getElementById('customerPetForm')?.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
+  }
+  
+  // Show loading screen
+  if (typeof showLoadingOverlay === 'function') {
+    showLoadingOverlay('Saving pet profile...');
+  }
+  
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -3057,6 +3183,17 @@ async function updatePetProfile() {
   } catch (error) {
     console.error('Error updating pet profile:', error);
     customAlert.error('Update Failed', 'Could not save your pet profile. Please try again.');
+    
+    // Re-enable button on error
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+  } finally {
+    // Hide loading screen
+    if (typeof hideLoadingOverlay === 'function') {
+      hideLoadingOverlay();
+    }
   }
 }
 

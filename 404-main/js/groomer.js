@@ -341,6 +341,13 @@ function setupGroomerPasswordForm() {
   });
 }
 
+// ============================================
+// 📅 ABSENCE REQUEST FORM SETUP
+// ============================================
+// Allows groomers to request time off
+// Includes proof upload (optional) and reason
+// Admin must approve before absence is active
+// ============================================
 function setupAbsenceForm() {
   const form = document.getElementById('absenceForm');
   if (!form) return;
@@ -356,23 +363,68 @@ function setupAbsenceForm() {
     const reason = document.getElementById('absenceReason').value.trim();
     const proofInput = document.getElementById('absenceProof');
 
+    // ============================================
+    // ✅ FORM VALIDATION
+    // ============================================
     if (!date || !reason) {
       customAlert.warning('Incomplete Form', 'Please complete the form.');
       return;
     }
 
+    // ============================================
+    // 📎 PROOF FILE UPLOAD (Optional)
+    // ============================================
+    // Convert uploaded file to base64 data URL
+    // Stored directly in absence record for easy display
+    // ============================================
     const file = proofInput?.files?.[0];
     let proofData = '';
     if (file) {
       proofData = await readFileAsDataUrl(file);
     }
 
+    // ============================================
+    // 🔑 GROOMER ID RESOLUTION
+    // ============================================
+    // CRITICAL: Must use correct groomer ID from server
+    // 
+    // Why this matters:
+    // - staffId: User login ID (e.g., "sam")
+    // - groomerId: Groomer system ID (e.g., "groomer-1")
+    // - Admin checks BOTH IDs when filtering absent groomers
+    // - If groomerId is wrong, groomer will still appear in assignment modal
+    // 
+    // Resolution process:
+    // 1. Try global groomerGroomerId (set on dashboard load)
+    // 2. Try user.groomerId (if already linked)
+    // 3. Call linkStaffToGroomer() to fetch/create groomer ID from server
+    // ============================================
+    let finalGroomerId = groomerGroomerId;
+    if (!finalGroomerId) {
+      // If not set, try to get it from user or link to groomer
+      finalGroomerId = user?.groomerId || await linkStaffToGroomer(user);
+      groomerGroomerId = finalGroomerId; // Update global variable
+    }
+    
+    console.log('[Absence Submission] Using groomer ID:', finalGroomerId, 'for user:', user.name);
+
+    // ============================================
+    // 💾 CREATE ABSENCE RECORD
+    // ============================================
+    // Absence record includes:
+    // - staffId: User login ID (for user identification)
+    // - groomerId: Groomer system ID (for absence filtering)
+    // - date: Absence date (YYYY-MM-DD format)
+    // - reason: Text explanation
+    // - proofData: Base64 encoded file (optional)
+    // - status: 'pending' (admin must approve)
+    // ============================================
     const absences = getStaffAbsences();
     absences.push({
       id: 'abs-' + Date.now(),
-      staffId: user.id,
+      staffId: user.id,              // User login ID
       staffName: user.name,
-      groomerId: groomerGroomerId || user.id,
+      groomerId: finalGroomerId,     // Groomer system ID (CRITICAL!)
       date,
       reason,
       proofName: file ? file.name : '',
@@ -382,6 +434,16 @@ function setupAbsenceForm() {
       adminNote: ''
     });
     saveStaffAbsences(absences);
+    
+    console.log('[Absence Submission] Absence created:', {
+      staffId: user.id,
+      groomerId: finalGroomerId,
+      date: date
+    });
+    
+    // ============================================
+    // 🔄 RESET FORM AND REFRESH
+    // ============================================
     form.reset();
     const dateInputReset = document.getElementById('absenceDate');
     if (dateInputReset) dateInputReset.value = '';

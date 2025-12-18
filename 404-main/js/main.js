@@ -597,6 +597,13 @@ async function saveUsers(users) {
 // Get all bookings - uses Firebase if available, falls back to localStorage
 // Auto-cancel pending bookings based on time rules
 // When cancelled, the slot is released back to availability
+// ============================================
+// ⏰ PENDING BOOKING EXPIRATION SYSTEM
+// ============================================
+// Automatically cancels pending bookings that haven't been confirmed
+// Rule: Full packages must be confirmed 1 hour before appointment time
+// Single services are EXEMPT from auto-cancellation
+// ============================================
 async function checkAndCancelPendingBookings() {
   try {
     // Use getBookingsRaw to avoid infinite loop (getBookings calls this function)
@@ -609,13 +616,24 @@ async function checkAndCancelPendingBookings() {
     const cancelledBookings = [];
 
     bookings.forEach(booking => {
-      // Only process pending bookings that haven't been paid
+      // ============================================
+      // 📋 FILTER: Only process PENDING bookings that haven't paid
+      // ============================================
+      // - Status must be 'pending'
+      // - Booking fee must NOT be paid (bookingFeePaid = 0)
+      // - If booking fee is paid, booking is considered confirmed
+      // ============================================
       if (booking.status !== 'pending' || booking.bookingFeePaid > 0) {
         return;
       }
 
-      // Skip auto-cancel for single service bookings
-      // Check by both packageId and packageName to be safe
+      // ============================================
+      // 🚫 EXEMPTION: Single service bookings never expire
+      // ============================================
+      // Single services don't require advance payment
+      // They can be booked up to 30 minutes before service time
+      // No auto-cancellation for single services
+      // ============================================
       const isSingleService = booking.packageId === 'single-service' || 
                               (booking.packageName && booking.packageName.includes('Single Service'));
       
@@ -627,47 +645,76 @@ async function checkAndCancelPendingBookings() {
       const bookingDate = booking.date;
       const bookingTime = booking.time;
 
-      // Parse booking time to get hour and minute
+      // ============================================
+      // 🕐 PARSE BOOKING TIME
+      // ============================================
+      // Convert booking time string to 24-hour format
+      // Handles formats: "9:30 AM", "2:00 PM", "9am-12pm"
+      // ============================================
       let bookingHour = 0;
       let bookingMinute = 0;
 
       if (bookingTime) {
-        // Handle formats like "9:30 AM", "2:00 PM", "9am-12pm"
+        // Extract hour, minute, and AM/PM from time string
         const timeMatch = bookingTime.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/i);
         if (timeMatch) {
           bookingHour = parseInt(timeMatch[1], 10);
           bookingMinute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
           const isPM = /pm/i.test(bookingTime);
           
+          // Convert to 24-hour format
           if (isPM && bookingHour !== 12) {
-            bookingHour += 12;
+            bookingHour += 12; // 2 PM -> 14:00
           } else if (!/pm/i.test(bookingTime) && bookingHour === 12) {
-            bookingHour = 0;
+            bookingHour = 0; // 12 AM -> 00:00
           }
         }
       }
 
-      // Calculate cutoff time (1 hour before booking time for regular packages)
+      // ============================================
+      // ⏰ CALCULATE EXPIRATION CUTOFF TIME
+      // ============================================
+      // Rule: Booking expires 1 hour BEFORE appointment time
+      // Example: 2:00 PM appointment -> expires at 1:00 PM
+      // If customer hasn't paid by 1:00 PM, booking is auto-cancelled
+      // ============================================
       let cutoffHour = bookingHour;
       let cutoffMinute = bookingMinute;
       
+      // Handle minute overflow (shouldn't happen with 1 hour, but kept for safety)
       if (cutoffMinute >= 60) {
         cutoffHour++;
         cutoffMinute -= 60;
       }
 
-      // Check if we should auto-cancel
+      // ============================================
+      // 🔍 CHECK IF BOOKING SHOULD BE CANCELLED
+      // ============================================
       let shouldCancel = false;
 
       if (bookingDate === today) {
-        // Same day booking: check if current time >= cutoff time
+        // ============================================
+        // CASE 1: Same-day booking
+        // ============================================
+        // Check if current time has passed the cutoff time
+        // Example: Booking at 2:00 PM, cutoff at 1:00 PM
+        //          If now is 1:15 PM -> cancel
+        //          If now is 12:45 PM -> keep
+        // ============================================
         if (now.getHours() > cutoffHour || 
             (now.getHours() === cutoffHour && now.getMinutes() >= cutoffMinute)) {
           shouldCancel = true;
           console.log(`[AutoCancel] Same-day booking ${booking.id} should be cancelled (current: ${now.getHours()}:${now.getMinutes()}, cutoff: ${cutoffHour}:${cutoffMinute})`);
         }
       } else {
-        // Future booking: check if booking date has arrived and current time >= cutoff
+        // ============================================
+        // CASE 2: Future booking
+        // ============================================
+        // Check if booking date has arrived AND time has passed cutoff
+        // Example: Booking on Dec 25 at 2:00 PM
+        //          On Dec 25 at 1:15 PM -> cancel
+        //          On Dec 24 at any time -> keep
+        // ============================================
         const bookingDateObj = new Date(bookingDate);
         if (bookingDateObj <= now) {
           // Booking date has arrived, check if time has passed
@@ -679,6 +726,9 @@ async function checkAndCancelPendingBookings() {
         }
       }
 
+      // ============================================
+      // ❌ CANCEL BOOKING IF EXPIRED
+      // ============================================
       if (shouldCancel) {
         booking.status = 'cancelledBySystem';
         booking.cancellationNote = 'Auto-cancelled: Booking not confirmed 1 hour before appointment time';
@@ -696,7 +746,14 @@ async function checkAndCancelPendingBookings() {
       }
     });
 
-    // Save changes if any bookings were cancelled
+    // ============================================
+    // 💾 SAVE CHANGES AND RELEASE SLOTS
+    // ============================================
+    // After cancelling bookings:
+    // 1. Save updated booking statuses to database
+    // 2. Release slots back to availability (+1 to slot count)
+    // 3. This allows other customers to book those time slots
+    // ============================================
     if (hasChanges) {
       await saveBookings(bookings);
       console.log('[AutoCancel] Bookings updated');

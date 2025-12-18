@@ -585,6 +585,117 @@ window.getGroomers = getGroomers;
 window.saveUpliftRequest = saveUpliftRequest;
 window.saveGroomers = saveGroomers;
 
+// ============================================
+// Real-time Listeners for Auto-Refresh
+// ============================================
+
+/**
+ * Setup real-time listener for packages (add-ons)
+ * Automatically refreshes the add-ons table when data changes
+ */
+function setupPackagesListener(callback) {
+  try {
+    const db = getDatabase();
+    if (!db) {
+      console.warn('Database not available for real-time listener');
+      return null;
+    }
+
+    const packagesRef = ref(db, 'packages');
+    
+    // Listen for changes
+    const unsubscribe = onValue(packagesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const packagesData = snapshot.val();
+        const packagesArray = Array.isArray(packagesData) 
+          ? packagesData 
+          : Object.values(packagesData || {});
+        
+        console.log('[Real-time] Packages updated:', packagesArray.length);
+        
+        // Call the callback with updated data
+        if (typeof callback === 'function') {
+          callback(packagesArray);
+        }
+      } else {
+        console.log('[Real-time] No packages data');
+        if (typeof callback === 'function') {
+          callback([]);
+        }
+      }
+    }, (error) => {
+      console.error('[Real-time] Error listening to packages:', error);
+    });
+
+    // Return unsubscribe function
+    return unsubscribe;
+  } catch (error) {
+    console.error('Error setting up packages listener:', error);
+    return null;
+  }
+}
+
+/**
+ * Setup real-time listener for bookings
+ * Automatically refreshes booking tables when data changes
+ */
+function setupBookingsListener(callback) {
+  try {
+    const db = getDatabase();
+    if (!db) {
+      console.warn('Database not available for real-time listener');
+      return null;
+    }
+
+    const bookingsRef = ref(db, 'bookings');
+    
+    // Listen for changes
+    const unsubscribe = onValue(bookingsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const bookingsData = snapshot.val();
+        const bookingsArray = Array.isArray(bookingsData) 
+          ? bookingsData 
+          : Object.values(bookingsData || {});
+        
+        console.log('[Real-time] Bookings updated:', bookingsArray.length);
+        
+        // Call the callback with updated data
+        if (typeof callback === 'function') {
+          callback(bookingsArray);
+        }
+      } else {
+        console.log('[Real-time] No bookings data');
+        if (typeof callback === 'function') {
+          callback([]);
+        }
+      }
+    }, (error) => {
+      console.error('[Real-time] Error listening to bookings:', error);
+    });
+
+    // Return unsubscribe function
+    return unsubscribe;
+  } catch (error) {
+    console.error('Error setting up bookings listener:', error);
+    return null;
+  }
+}
+
+/**
+ * Remove/cleanup a real-time listener
+ */
+function removeListener(unsubscribe) {
+  if (typeof unsubscribe === 'function') {
+    unsubscribe();
+    console.log('[Real-time] Listener removed');
+  }
+}
+
+// Make available globally
+window.setupPackagesListener = setupPackagesListener;
+window.setupBookingsListener = setupBookingsListener;
+window.removeListener = removeListener;
+
 // Export for module use
 export {
   getCurrentUser,
@@ -598,6 +709,9 @@ export {
   getPackages,
   savePackages,
   getGroomers,
-  saveGroomers
+  saveGroomers,
+  setupPackagesListener,
+  setupBookingsListener,
+  removeListener
 };
 

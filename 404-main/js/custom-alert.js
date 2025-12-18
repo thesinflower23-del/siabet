@@ -11,11 +11,17 @@ class CustomAlert {
     }
 
     init() {
-        // Create DOM structure
-        if (document.getElementById('customAlertOverlay')) {
-            return; // Already initialized
+        // Check if already exists and reuse
+        const existingOverlay = document.getElementById('customAlertOverlay');
+        const existingBox = document.getElementById('customAlertBox');
+        
+        if (existingOverlay && existingBox) {
+            this.overlay = existingOverlay;
+            this.box = existingBox;
+            return; // Already initialized, reuse existing elements
         }
 
+        // Create DOM structure
         const overlay = document.createElement('div');
         overlay.id = 'customAlertOverlay';
         overlay.className = 'custom-alert-overlay';
@@ -47,8 +53,9 @@ class CustomAlert {
      */
     show(title, message, type = 'success', icon = '✓', btnText = 'Okay') {
         return new Promise((resolve) => {
-            // Reset classes
+            // Reset classes and clear any previous content
             this.box.className = `custom-alert-box alert-${type}`;
+            this.box.innerHTML = ''; // Clear first to prevent duplicates
 
             // Build HTML
             this.box.innerHTML = `
