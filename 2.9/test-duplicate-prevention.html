@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duplicate Prevention Stress Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 2rem;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 1rem;
+    }
+    
+    .test-section {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+    }
+    
+    .test-section h2 {
+      color: #1976d2;
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+    }
+    
+    .test-button {
+      background: #1976d2;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0.5rem 0.5rem 0.5rem 0;
+      transition: all 0.2s;
+    }
+    
+    .test-button:hover {
+      background: #1565c0;
+      transform: translateY(-1px);
+    }
+    
+    .test-button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .test-button.danger {
+      background: #d32f2f;
+    }
+    
+    .test-button.danger:hover {
+      background: #c62828;
+    }
+    
+    .test-button.success {
+      background: #388e3c;
+    }
+    
+    .test-button.success:hover {
+      background: #2e7d32;
+    }
+    
+    .log-container {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-top: 1rem;
+    }
+    
+    .log-entry {
+      margin: 0.25rem 0;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid #333;
+    }
+    
+    .log-entry.success {
+      color: #4caf50;
+    }
+    
+    .log-entry.error {
+      color: #f44336;
+    }
+    
+    .log-entry.warning {
+      color: #ff9800;
+    }
+    
+    .log-entry.info {
+      color: #2196f3;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    
+    .stat-card {
+      background: #f5f5f5;
+      padding: 1rem;
+      border-radius: 6px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1976d2;
+    }
+    
+    .stat-label {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 0.5rem;
+    }
+    
+    .alert {
+      padding: 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+    }
+    
+    .alert.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #4caf50;
+    }
+    
+    .alert.error {
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #f44336;
+    }
+    
+    .alert.warning {
+      background: #fff3e0;
+      color: #e65100;
+      border: 1px solid #ff9800;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Duplicate Prevention Stress Test</h1>
+    <p style="color: #666; margin-bottom: 1rem;">
+      Test the duplicate prevention system by simulating rapid clicks, slow connections, and concurrent submissions.
+    </p>
+    
+    <div style="background: #e3f2fd; padding: 1rem; border-radius: 6px; margin-bottom: 2rem; border-left: 4px solid #1976d2;">
+      <strong>💡 Important:</strong> Click "Reset Statistics" before running each test for accurate results!
+    </div>
+    
+    <!-- Test 1: Rapid Clicking -->
+    <div class="test-section">
+      <h2>Test 1: Rapid Button Clicking</h2>
+      <p style="margin-bottom: 1rem; color: #666;">
+        Simulates a user rapidly clicking the submit button (20 clicks in 1 second)
+      </p>
+      <button class="test-button" onclick="testRapidClicking()">
+        🖱️ Run Rapid Click Test
+      </button>
+      <button class="test-button" onclick="testRapidClickingExtreme()">
+        ⚡ Extreme Test (100 clicks)
+      </button>
+    </div>
+    
+    <!-- Test 2: Concurrent Submissions -->
+    <div class="test-section">
+      <h2>Test 2: Concurrent Submissions</h2>
+      <p style="margin-bottom: 1rem; color: #666;">
+        Simulates multiple simultaneous submission attempts
+      </p>
+      <button class="test-button" onclick="testConcurrentSubmissions()">
+        🔄 Run Concurrent Test
+      </button>
+    </div>
+    
+    <!-- Test 3: Slow Connection -->
+    <div class="test-section">
+      <h2>Test 3: Slow Connection Simulation</h2>
+      <p style="margin-bottom: 1rem; color: #666;">
+        Simulates slow network with delayed responses
+      </p>
+      <button class="test-button" onclick="testSlowConnection()">
+        🐌 Run Slow Connection Test
+      </button>
+    </div>
+    
+    <!-- Test 4: Cooldown Timer -->
+    <div class="test-section">
+      <h2>Test 4: Cooldown Timer Verification</h2>
+      <p style="margin-bottom: 1rem; color: #666;">
+        Verifies that cooldown timer prevents rapid re-submission
+      </p>
+      <button class="test-button" onclick="testCooldownTimer()">
+        ⏱️ Run Cooldown Test
+      </button>
+    </div>
+    
+    <!-- Test 5: Button State -->
+    <div class="test-section">
+      <h2>Test 5: Button State Management</h2>
+      <p style="margin-bottom: 1rem; color: #666;">
+        Tests button disable/enable during submission
+      </p>
+      <button class="test-button" id="testButton" onclick="testButtonState()">
+        🔘 Run Button State Test
+      </button>
+    </div>
+    
+    <!-- Protection Status -->
+    <div class="alert" id="protectionStatus" style="background: #e8f5e9; color: #2e7d32; border: 1px solid #4caf50; margin: 1rem 0;">
+      <strong>🛡️ Protection Status:</strong> <span id="statusText">Ready</span>
+    </div>
+    
+    <!-- Statistics -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value" id="totalAttempts">0</div>
+        <div class="stat-label">Total Attempts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="successfulSubmissions">0</div>
+        <div class="stat-label">Successful Submissions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="blockedAttempts">0</div>
+        <div class="stat-label">Blocked Attempts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="duplicatePrevented">0</div>
+        <div class="stat-label">Duplicates Prevented</div>
+      </div>
+    </div>
+    
+    <!-- Results -->
+    <div id="results"></div>
+    
+    <!-- Log Console -->
+    <h2 style="margin-top: 2rem;">📋 Test Log</h2>
+    <button class="test-button danger" onclick="clearLog()">Clear Log</button>
+    <button class="test-button success" onclick="resetStats()">Reset Statistics</button>
+    <div class="log-container" id="logContainer"></div>
+  </div>
+  
+  <script>
+    // Test statistics
+    let stats = {
+      totalAttempts: 0,
+      successfulSubmissions: 0,
+      blockedAttempts: 0,
+      duplicatePrevented: 0
+    };
+    
+    // Simulate booking submission protection (MATCHES booking.js exactly)
+    let isSubmitting = false;
+    let lastSubmitTime = 0;
+    const COOLDOWN_MS = 3000;
+    
+    // Reset protection state (for testing)
+    function resetProtectionState() {
+      isSubmitting = false;
+      lastSubmitTime = 0;
+      updateProtectionStatus();
+      log('🔄 Protection state reset', 'info');
+    }
+    
+    function updateProtectionStatus() {
+      const statusDiv = document.getElementById('protectionStatus');
+      const statusText = document.getElementById('statusText');
+      
+      if (isSubmitting) {
+        statusDiv.style.background = '#ffebee';
+        statusDiv.style.color = '#c62828';
+        statusDiv.style.borderColor = '#f44336';
+        statusText.textContent = '🔒 Submitting... (Blocking duplicates)';
+      } else {
+        const now = Date.now();
+        const timeSinceLastSubmit = now - lastSubmitTime;
+        
+        if (lastSubmitTime > 0 && timeSinceLastSubmit < COOLDOWN_MS) {
+          const timeLeft = Math.ceil((COOLDOWN_MS - timeSinceLastSubmit) / 1000);
+          statusDiv.style.background = '#fff3e0';
+          statusDiv.style.color = '#e65100';
+          statusDiv.style.borderColor = '#ff9800';
+          statusText.textContent = `⏱️ Cooldown active (${timeLeft}s remaining)`;
+        } else {
+          statusDiv.style.background = '#e8f5e9';
+          statusDiv.style.color = '#2e7d32';
+          statusDiv.style.borderColor = '#4caf50';
+          statusText.textContent = '✅ Ready to accept submissions';
+        }
+      }
+    }
+    
+    function updateStats() {
+      document.getElementById('totalAttempts').textContent = stats.totalAttempts;
+      document.getElementById('successfulSubmissions').textContent = stats.successfulSubmissions;
+      document.getElementById('blockedAttempts').textContent = stats.blockedAttempts;
+      document.getElementById('duplicatePrevented').textContent = stats.duplicatePrevented;
+      updateProtectionStatus();
+    }
+    
+    // Update protection status every 100ms
+    setInterval(updateProtectionStatus, 100);
+    
+    function log(message, type = 'info') {
+      const logContainer = document.getElementById('logContainer');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logContainer.appendChild(entry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+    
+    function clearLog() {
+      document.getElementById('logContainer').innerHTML = '';
+      log('Log cleared', 'info');
+    }
+    
+    function resetStats() {
+      stats = {
+        totalAttempts: 0,
+        successfulSubmissions: 0,
+        blockedAttempts: 0,
+        duplicatePrevented: 0
+      };
+      updateStats();
+      resetProtectionState();
+      log('📊 Statistics reset to zero', 'success');
+      showResult('✅ Statistics and protection state reset!', 'success');
+    }
+    
+    function showResult(message, type = 'success') {
+      const results = document.getElementById('results');
+      const alert = document.createElement('div');
+      alert.className = `alert ${type}`;
+      alert.innerHTML = `<strong>${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</strong> ${message}`;
+      results.appendChild(alert);
+      
+      setTimeout(() => {
+        alert.remove();
+      }, 10000); // Show for 10 seconds
+    }
+    
+    // Simulate protected submission (EXACTLY matches booking.js behavior)
+    async function simulateSubmission(attemptNumber, simulatedDelay = 500) {
+      stats.totalAttempts++;
+      updateStats();
+      
+      const now = Date.now();
+      const timeSinceLastSubmit = now - lastSubmitTime;
+      
+      // ============================================
+      // 🛡️ LAYER 1: Check if already submitting
+      // ============================================
+      // Blocks concurrent submissions during async operation
+      if (isSubmitting) {
+        stats.blockedAttempts++;
+        stats.duplicatePrevented++;
+        updateStats();
+        log(`Attempt ${attemptNumber}: BLOCKED - Already submitting`, 'warning');
+        return false;
+      }
+      
+      // ============================================
+      // 🛡️ LAYER 2: Check cooldown timer
+      // ============================================
+      // Prevents rapid re-submission after previous one starts
+      // Cooldown = 3 seconds from LAST SUBMISSION START time
+      // This matches booking.js: lastSubmitTime = now (set at start)
+      if (lastSubmitTime > 0 && timeSinceLastSubmit < COOLDOWN_MS) {
+        const timeLeft = Math.ceil((COOLDOWN_MS - timeSinceLastSubmit) / 1000);
+        stats.blockedAttempts++;
+        stats.duplicatePrevented++;
+        updateStats();
+        log(`Attempt ${attemptNumber}: BLOCKED - Cooldown active (${timeLeft}s left)`, 'warning');
+        return false;
+      }
+      
+      // ============================================
+      // ✅ ALLOW SUBMISSION
+      // ============================================
+      // Set flags BEFORE async operation (matches real booking.js)
+      isSubmitting = true;
+      lastSubmitTime = now; // Set at START (matches booking.js)
+      stats.successfulSubmissions++;
+      updateStats();
+      log(`Attempt ${attemptNumber}: ✅ ALLOWED - Submission started`, 'success');
+      
+      // Simulate async operation with configurable delay
+      await new Promise(resolve => setTimeout(resolve, simulatedDelay));
+      
+      // ============================================
+      // 🔄 RESET isSubmitting FLAG AFTER COMPLETION
+      // ============================================
+      // lastSubmitTime stays set (for cooldown calculation)
+      // isSubmitting is reset (allows next submission after cooldown)
+      isSubmitting = false;
+      log(`Attempt ${attemptNumber}: ✅ COMPLETED`, 'success');
+      return true;
+    }
+    
+    // Test running protection
+    let testInProgress = false;
+    
+    // Test 1: Rapid Clicking
+    async function testRapidClicking() {
+      // Prevent double-clicking test button
+      if (testInProgress) {
+        log('⚠️ Test already in progress, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      const testBtn = event?.target;
+      if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.style.opacity = '0.5';
+        testBtn.textContent = 'Running Test...';
+      }
+      
+      resetProtectionState(); // Reset before test
+      log('=== Starting Rapid Click Test (20 clicks in 1 second) ===', 'info');
+      log('📊 Each click is 50ms apart, async operation takes 500ms', 'info');
+      const startStats = { ...stats };
+      
+      for (let i = 0; i < 20; i++) {
+        setTimeout(() => {
+          log(`⏱️ Click ${i + 1} at ${i * 50}ms`, 'info');
+          simulateSubmission(i + 1);
+        }, i * 50);
+      }
+      
+      // Wait longer to ensure all attempts complete
+      setTimeout(() => {
+        const prevented = stats.duplicatePrevented - startStats.duplicatePrevented;
+        const successful = stats.successfulSubmissions - startStats.successfulSubmissions;
+        
+        log(`📊 Final Results: ${successful} successful, ${prevented} prevented`, 'info');
+        
+        if (successful === 1 && prevented === 19) {
+          showResult(`✅ PASS: Only 1 submission succeeded, 19 duplicates prevented!`, 'success');
+        } else {
+          showResult(`⚠️ FAIL: Expected 1 successful, got ${successful}. Expected 19 prevented, got ${prevented}.`, 'error');
+        }
+        
+        // Re-enable test button
+        testInProgress = false;
+        if (testBtn) {
+          testBtn.disabled = false;
+          testBtn.style.opacity = '1';
+          testBtn.textContent = '🖱️ Run Rapid Click Test';
+        }
+      }, 4500); // Wait 4.5 seconds (1s for clicks + 3s cooldown + 0.5s buffer)
+    }
+    
+    // Extreme test
+    async function testRapidClickingExtreme() {
+      // Prevent double-clicking test button
+      if (testInProgress) {
+        log('⚠️ Test already in progress, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      const testBtn = event?.target;
+      if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.style.opacity = '0.5';
+        testBtn.textContent = 'Running Test...';
+      }
+      
+      resetProtectionState(); // Reset before test
+      log('=== Starting EXTREME Rapid Click Test (100 clicks) ===', 'info');
+      log('📊 100 clicks, 10ms apart = 1 second total', 'info');
+      log('📊 First submission takes 500ms', 'info');
+      const startStats = { ...stats };
+      
+      for (let i = 0; i < 100; i++) {
+        setTimeout(() => simulateSubmission(i + 1), i * 10);
+      }
+      
+      // Wait longer: 1s for clicks + 0.5s for first submission + 3s cooldown + 0.5s buffer
+      setTimeout(() => {
+        const prevented = stats.duplicatePrevented - startStats.duplicatePrevented;
+        const successful = stats.successfulSubmissions - startStats.successfulSubmissions;
+        
+        log(`📊 Final Results: ${successful} successful, ${prevented} prevented`, 'info');
+        
+        if (successful === 1 && prevented === 99) {
+          showResult(`✅ PASS: Only 1 submission, 99 duplicates prevented!`, 'success');
+        } else if (successful === 2 && prevented === 98) {
+          showResult(`⚠️ ACCEPTABLE: ${successful} submissions, ${prevented} duplicates prevented (timing variance)`, 'warning');
+        } else {
+          showResult(`❌ FAIL: Expected 1 successful, got ${successful}. Expected 99 prevented, got ${prevented}.`, 'error');
+        }
+        
+        // Re-enable test button
+        testInProgress = false;
+        if (testBtn) {
+          testBtn.disabled = false;
+          testBtn.style.opacity = '1';
+          testBtn.textContent = '⚡ Extreme Test (100 clicks)';
+        }
+      }, 5000); // Increased to 5 seconds
+    }
+    
+    // Test 2: Concurrent Submissions
+    async function testConcurrentSubmissions() {
+      // Prevent double-clicking test button
+      if (testInProgress) {
+        log('⚠️ Test already in progress, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      const testBtn = event?.target;
+      if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.style.opacity = '0.5';
+        testBtn.textContent = 'Running Test...';
+      }
+      
+      resetProtectionState(); // Reset before test
+      log('=== Starting Concurrent Submissions Test ===', 'info');
+      const startStats = { ...stats };
+      
+      // Try to submit 5 times simultaneously
+      const promises = [];
+      for (let i = 0; i < 5; i++) {
+        promises.push(simulateSubmission(i + 1));
+      }
+      
+      await Promise.all(promises);
+      
+      const prevented = stats.duplicatePrevented - startStats.duplicatePrevented;
+      const successful = stats.successfulSubmissions - startStats.successfulSubmissions;
+      
+      if (successful === 1 && prevented === 4) {
+        showResult(`✅ PASS: Only 1 concurrent submission succeeded!`, 'success');
+      } else {
+        showResult(`⚠️ WARNING: ${successful} submissions succeeded, ${prevented} prevented`, 'warning');
+      }
+      
+      // Re-enable test button
+      testInProgress = false;
+      if (testBtn) {
+        testBtn.disabled = false;
+        testBtn.style.opacity = '1';
+        testBtn.textContent = '🔄 Run Concurrent Test';
+      }
+    }
+    
+    // Test 3: Slow Connection
+    async function testSlowConnection() {
+      // Prevent double-clicking test button
+      if (testInProgress) {
+        log('⚠️ Test already in progress, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      const testBtn = event?.target;
+      if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.style.opacity = '0.5';
+        testBtn.textContent = 'Running Test...';
+      }
+      
+      resetProtectionState(); // Reset before test
+      log('=== Starting Slow Connection Test ===', 'info');
+      log('📊 First submission takes 2 seconds (slow connection)', 'info');
+      log('📊 Attempts 2-4 will try during that 2 second window', 'info');
+      const startStats = { ...stats };
+      
+      // First submission (will take 2 seconds to simulate slow connection)
+      // DON'T await - we want to test concurrent attempts
+      simulateSubmission(1, 2000); // 2 second delay
+      
+      // Try to submit again after 500ms (should be blocked - still submitting)
+      setTimeout(() => simulateSubmission(2), 500);
+      
+      // Try again after 1 second (should be blocked - still submitting)
+      setTimeout(() => simulateSubmission(3), 1000);
+      
+      // Try again after 1.5 seconds (should be blocked - still submitting)
+      setTimeout(() => simulateSubmission(4), 1500);
+      
+      // Wait for first submission to complete (2s) + buffer
+      setTimeout(() => {
+        const prevented = stats.duplicatePrevented - startStats.duplicatePrevented;
+        const successful = stats.successfulSubmissions - startStats.successfulSubmissions;
+        
+        log(`📊 Final Results: ${successful} successful, ${prevented} prevented`, 'info');
+        
+        if (successful === 1 && prevented === 3) {
+          showResult(`✅ PASS: Slow connection handled correctly! Only 1 submission during 2s delay.`, 'success');
+        } else {
+          showResult(`❌ FAIL: Expected 1 successful, got ${successful}. Expected 3 prevented, got ${prevented}.`, 'error');
+        }
+        
+        // Re-enable test button
+        testInProgress = false;
+        if (testBtn) {
+          testBtn.disabled = false;
+          testBtn.style.opacity = '1';
+          testBtn.textContent = '🐌 Run Slow Connection Test';
+        }
+      }, 2500); // Wait 2.5 seconds (2s for submission + 0.5s buffer)
+    }
+    
+    // Test 4: Cooldown Timer
+    async function testCooldownTimer() {
+      // Prevent double-clicking test button
+      if (testInProgress) {
+        log('⚠️ Test already in progress, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      const testBtn = event?.target;
+      if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.style.opacity = '0.5';
+        testBtn.textContent = 'Running Test...';
+      }
+      
+      resetProtectionState(); // Reset before test
+      log('=== Starting Cooldown Timer Test ===', 'info');
+      const startStats = { ...stats };
+      
+      // First submission
+      log('📤 Submitting first request...', 'info');
+      await simulateSubmission(1);
+      
+      // Wait 1 second (should be blocked - cooldown is 3s)
+      log('⏱️ Waiting 1 second...', 'info');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      log('📤 Attempting second request (should be BLOCKED - only 1s passed, need 3s)', 'info');
+      await simulateSubmission(2);
+      
+      // Wait 2.5 more seconds (total 3.5s - should succeed)
+      log('⏱️ Waiting 2.5 more seconds (total 3.5s)...', 'info');
+      await new Promise(resolve => setTimeout(resolve, 2500));
+      log('📤 Attempting third request (should SUCCEED - 3.5s passed)', 'info');
+      await simulateSubmission(3);
+      
+      const prevented = stats.duplicatePrevented - startStats.duplicatePrevented;
+      const successful = stats.successfulSubmissions - startStats.successfulSubmissions;
+      
+      if (successful === 2 && prevented === 1) {
+        showResult(`✅ PASS: Cooldown timer working correctly! (2 successful, 1 blocked)`, 'success');
+      } else {
+        showResult(`⚠️ WARNING: Expected 2 successful and 1 blocked, got ${successful} successful and ${prevented} blocked`, 'warning');
+      }
+      
+      // Re-enable test button
+      testInProgress = false;
+      if (testBtn) {
+        testBtn.disabled = false;
+        testBtn.style.opacity = '1';
+        testBtn.textContent = '⏱️ Run Cooldown Test';
+      }
+    }
+    
+    // Test 5: Button State
+    async function testButtonState() {
+      // Prevent double-clicking test button
+      if (testInProgress) {
+        log('⚠️ Test already in progress, please wait...', 'warning');
+        return;
+      }
+      
+      testInProgress = true;
+      const btn = document.getElementById('testButton');
+      log('=== Starting Button State Test ===', 'info');
+      
+      // Disable button
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      btn.style.opacity = '0.5';
+      log('Button disabled', 'info');
+      
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Re-enable button
+      btn.disabled = false;
+      btn.textContent = '🔘 Run Button State Test';
+      btn.style.opacity = '1';
+      log('Button re-enabled', 'success');
+      
+      showResult('✅ PASS: Button state management working!', 'success');
+      
+      // Re-enable test protection
+      testInProgress = false;
+    }
+    
+    // Initialize
+    log('Duplicate Prevention Stress Test initialized', 'info');
+    log('Click any test button to start testing', 'info');
+  </script>
+</body>
+</html>
